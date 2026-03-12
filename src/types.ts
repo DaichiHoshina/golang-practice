@@ -9,7 +9,7 @@ export interface InterviewPoint {
 }
 
 export interface Quiz {
-  type?: "code" | "text" | "concept"; // "code" = code fill-in, "text" = text fill-in, "concept" = theory Q&A
+  type?: "text" | "concept"; // "text" = text fill-in, "concept" = theory Q&A
   code: string; // question text or code with ____
   blanks: string[];
   explanation: string;

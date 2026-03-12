@@ -147,45 +147,6 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
     });
   };
 
-  // Code type: syntax-highlighted code block (legacy)
-  const renderedCode = useMemo(() => {
-    if (qType !== "code") return "";
-
-    const PH_PRE = "__BLK";
-    const PH_SUF = "K__";
-    let codeForHl = quiz.code;
-    let bi = 0;
-    while (codeForHl.includes(BLANK_MARKER)) {
-      codeForHl = codeForHl.replace(BLANK_MARKER, `${PH_PRE}${bi}${PH_SUF}`);
-      bi++;
-    }
-
-    let html = hljs.highlight(codeForHl, { language: "go" }).value;
-    for (let i = 0; i < quiz.blanks.length; i++) {
-      const ph = `${PH_PRE}${i}${PH_SUF}`;
-      if (openSet.has(i)) {
-        html = html.replace(
-          ph,
-          `<span class="quiz-blank-revealed" data-idx="${i}">${quiz.blanks[i]}</span>`,
-        );
-      } else {
-        html = html.replace(
-          ph,
-          `<span class="quiz-blank-hidden" data-idx="${i}">${BLANK_MARKER}</span>`,
-        );
-      }
-    }
-    return html;
-  }, [quiz.code, quiz.blanks, openSet, qType]);
-
-  const handleCodeClick = (e: Event) => {
-    const target = e.target as HTMLElement;
-    const idx = target.getAttribute("data-idx");
-    if (idx !== null && target.classList.contains("quiz-blank-hidden")) {
-      toggle(Number(idx));
-    }
-  };
-
   // ── Concept type ──
   if (qType === "concept") {
     return (
@@ -234,76 +195,29 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
   }
 
   // ── Text fill-in-blank type (default) ──
-  if (qType === "text") {
-    return (
-      <div class="border border-info/20 rounded-box overflow-hidden">
-        <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
-          <span class="text-xs font-bold text-info">
-            Q{index + 1}. 穴埋め問題
-          </span>
-          {!allOpen && (
-            <span class="text-[0.65rem] opacity-40">
-              ____ をクリックして答えを開こう
-            </span>
-          )}
-        </div>
-        <div class="p-3">
-          <p class="text-sm leading-relaxed">
-            <TextWithBlanks
-              text={quiz.code}
-              blanks={quiz.blanks}
-              openSet={openSet}
-              onToggle={toggle}
-            />
-          </p>
-          {allOpen && (
-            <div class="mt-3 bg-info/5 border border-info/15 rounded-lg p-3">
-              <p class="text-xs opacity-80 leading-relaxed">
-                <HighlightedText text={quiz.explanation} />
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Code fill-in-blank type (legacy) ──
   return (
     <div class="border border-info/20 rounded-box overflow-hidden">
       <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
         <span class="text-xs font-bold text-info">
-          Q{index + 1}. コード穴埋め
+          Q{index + 1}. 穴埋め問題
         </span>
         {!allOpen && (
           <span class="text-[0.65rem] opacity-40">
-            ____ をクリックして正解を開こう
+            ____ をクリックして答えを開こう
           </span>
         )}
       </div>
       <div class="p-3">
-        <pre
-          class="code-block !my-0 border-l-3 border-info/30"
-          onClick={handleCodeClick}
-        >
-          <code
-            class="hljs"
-            dangerouslySetInnerHTML={{ __html: renderedCode }}
+        <p class="text-sm leading-relaxed">
+          <TextWithBlanks
+            text={quiz.code}
+            blanks={quiz.blanks}
+            openSet={openSet}
+            onToggle={toggle}
           />
-        </pre>
-        <div class="mt-3 flex flex-wrap gap-2">
-          {quiz.blanks.map((b, i) => (
-            <span
-              key={i}
-              class={`badge badge-sm gap-1 ${openSet.has(i) ? "badge-info" : "badge-ghost opacity-50"}`}
-            >
-              <span class="opacity-60">{i + 1}.</span>{" "}
-              {openSet.has(i) ? b : "???"}
-            </span>
-          ))}
-        </div>
+        </p>
         {allOpen && (
-          <div class="mt-2 bg-info/5 border border-info/15 rounded-lg p-3">
+          <div class="mt-3 bg-info/5 border border-info/15 rounded-lg p-3">
             <p class="text-xs opacity-80 leading-relaxed">
               <HighlightedText text={quiz.explanation} />
             </p>

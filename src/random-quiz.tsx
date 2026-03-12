@@ -2,7 +2,6 @@ import { useState, useMemo, useCallback } from "hono/jsx/dom";
 import type { Quiz } from "./types";
 import { TOPICS } from "./data";
 import { HighlightedText } from "./term-highlight";
-import hljs from "highlight.js/lib/core";
 
 // ─── Collect all quizzes with topic metadata ─────────────
 
@@ -38,8 +37,6 @@ export interface QuizScores {
 }
 
 // ─── Component ───────────────────────────────────────────
-// Note: dangerouslySetInnerHTML is safe here because input is only
-// hardcoded Go code strings from data.ts, never user input.
 
 const BLANK = "____";
 
@@ -108,46 +105,6 @@ export function RandomQuiz({ scores, onScore }: Props) {
     }
     return result;
   }, [current, openSet, qType]);
-
-  /** Code type: syntax-highlighted (legacy) */
-  const renderedCode = useMemo(() => {
-    if (!current || qType !== "code") return "";
-    const { quiz } = current;
-
-    const PH_PRE = "__BLK";
-    const PH_SUF = "K__";
-    let codeForHl = quiz.code;
-    let bi = 0;
-    while (codeForHl.includes(BLANK)) {
-      codeForHl = codeForHl.replace(BLANK, `${PH_PRE}${bi}${PH_SUF}`);
-      bi++;
-    }
-
-    let html = hljs.highlight(codeForHl, { language: "go" }).value;
-    for (let i = 0; i < quiz.blanks.length; i++) {
-      const ph = `${PH_PRE}${i}${PH_SUF}`;
-      if (openSet.has(i)) {
-        html = html.replace(
-          ph,
-          `<span class="quiz-blank-revealed" data-idx="${i}">${quiz.blanks[i]}</span>`,
-        );
-      } else {
-        html = html.replace(
-          ph,
-          `<span class="quiz-blank-hidden" data-idx="${i}">${BLANK}</span>`,
-        );
-      }
-    }
-    return html;
-  }, [current, openSet, qType]);
-
-  const handleCodeClick = (e: Event) => {
-    const target = e.target as HTMLElement;
-    const idx = target.getAttribute("data-idx");
-    if (idx !== null && target.classList.contains("quiz-blank-hidden")) {
-      toggleBlank(Number(idx));
-    }
-  };
 
   const scoreKey = current ? `${current.topicId}_${currentIdx % total}` : "";
 
@@ -232,20 +189,10 @@ export function RandomQuiz({ scores, onScore }: Props) {
             <p class="text-sm font-medium leading-relaxed mb-1">
               <HighlightedText text={current.quiz.code} />
             </p>
-          ) : qType === "text" ? (
+          ) : (
             <p class="text-sm leading-relaxed">
               <span>{textElements}</span>
             </p>
-          ) : (
-            <pre
-              class="code-block border-l-3 border-info/30"
-              onClick={handleCodeClick}
-            >
-              <code
-                class="hljs"
-                dangerouslySetInnerHTML={{ __html: renderedCode }}
-              />
-            </pre>
           )}
 
           {/* Concept: hint badges */}
