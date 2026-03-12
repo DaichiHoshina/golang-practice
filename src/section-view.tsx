@@ -111,7 +111,11 @@ function TopicCard({
         onClick={() => setExpanded((e: boolean) => !e)}
       >
         <div class="flex items-start gap-3">
+          <label class="sr-only" for={`check-${topic.id}`}>
+            {topic.title} を完了にする
+          </label>
           <input
+            id={`check-${topic.id}`}
             type="checkbox"
             class="checkbox checkbox-primary checkbox-sm mt-0.5 shrink-0"
             checked={completed}

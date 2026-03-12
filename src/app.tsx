@@ -58,6 +58,7 @@ export function App() {
           <button
             class="btn btn-ghost btn-sm btn-square"
             onClick={() => setSidebarOpen((o: boolean) => !o)}
+            aria-label="サイドバーを切り替え"
           >
             ☰
           </button>
@@ -95,8 +96,8 @@ export function App() {
                 const isActive = currentSection === s.id;
                 return (
                   <li key={s.id}>
-                    <a
-                      class={`flex justify-between ${isActive ? "active" : ""}`}
+                    <button
+                      class={`flex justify-between w-full ${isActive ? "active" : ""}`}
                       onClick={() => setCurrentSection(s.id)}
                     >
                       <span class="flex items-center gap-2">
@@ -114,7 +115,7 @@ export function App() {
                           {done}/{total}
                         </span>
                       )}
-                    </a>
+                    </button>
                   </li>
                 );
               })}
