@@ -252,6 +252,66 @@ export const GLOSSARY: GlossaryEntry[] = [
     description:
       "HTTP ハンドラを wrap して横断的関心事（認証、ログ、リカバリ等）を追加するパターン。func(http.Handler) http.Handler シグネチャが Go の標準的な形式。",
   },
+
+  // ── 設計パターン（追加） ──
+  {
+    term: "Functional Options",
+    description:
+      "可変長引数で設定を渡す Go のイディオム。type Option func(*T) と WithXxx ファクトリ関数で構成。API の後方互換を保ちつつ柔軟な設定が可能。Dave Cheney が提唱。",
+  },
+  {
+    term: "DI",
+    description:
+      "依存性注入 (Dependency Injection)。Go ではコンストラクタ引数で依存を渡すのが標準的。interface で抽象化し、テスト時にモックを注入する。",
+  },
+
+  // ── 並行処理パターン（追加） ──
+  {
+    term: "Pipeline",
+    description:
+      "channel で処理ステージを直列に接続するパターン。各ステージは独立した goroutine で動作し、Fan-out/Fan-in で並列化できる。",
+  },
+  {
+    term: "Fan-out",
+    description:
+      "1つの channel を複数の goroutine が読み取るパターン。処理を並列化してスループットを向上させる。",
+  },
+  {
+    term: "Fan-in",
+    description:
+      "複数の channel からの出力を1つの channel に集約するパターン。sync.WaitGroup で全 goroutine の完了を待ち、merged channel を close する。",
+  },
+
+  // ── パフォーマンス（追加） ──
+  {
+    term: "GOGC",
+    description:
+      "Go の GC 頻度を制御する環境変数。ヒープが前回 GC 後の N% 増えたら GC を実行（デフォルト 100 = 2倍で実行）。GOGC=off で GC を無効化。",
+  },
+  {
+    term: "GOMEMLIMIT",
+    description:
+      "Go 1.19+ で追加されたソフトメモリ上限の環境変数。この上限に近づくと積極的に GC が走る。コンテナのメモリ上限の 80-90% に設定するのが目安。",
+  },
+
+  // ── テスト（追加） ──
+  {
+    term: "Fuzzing",
+    description:
+      "ランダムな入力を自動生成してバグを発見するテスト手法。Go 1.18 で testing.F として標準ライブラリに統合。パーサーやバリデータに特に有効。",
+  },
+
+  // ── 実務パターン ──
+  {
+    term: "slog",
+    description:
+      "Go 1.21 で追加された標準の構造化ログパッケージ (log/slog)。JSONHandler / TextHandler を標準提供し、key-value ペアで構造化データを出力する。",
+  },
+  {
+    term: "LimitReader",
+    description:
+      "io.LimitReader(r, n) で読み取りバイト数を制限する。外部 API のレスポンスや、ユーザーアップロードのサイズ制限に使い、OOM を防ぐ。",
+  },
 ];
 
 // 検索用: 用語 → 説明のマップ

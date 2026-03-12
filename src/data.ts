@@ -2873,6 +2873,955 @@ type UserRepository interface {
       },
     ],
   },
+
+  // ── 基本文法（追加2） ──────────────────────────────────
+
+  "syntax-struct-embedding": {
+    id: "syntax-struct-embedding",
+    section: "syntax",
+    title: "struct の埋め込みと合成",
+    tag: "設計",
+    summary:
+      "Go には継承がない。struct の埋め込み（embedding）でメソッドを昇格させ、合成（composition）で設計する。",
+    why: "Java/C# の継承ツリーを Go に持ち込むと破綻する。Go は is-a ではなく has-a で考え、interface + embedding で柔軟に合成する。",
+    tradeoffs: [
+      {
+        title: "埋め込み vs 明示的フィールド",
+        desc: "埋め込みはメソッド昇格で便利だが、どのメソッドが使えるか見えにくくなる。API境界では明示的フィールド + 委譲が安全。",
+      },
+    ],
+    badCode: `// 擬似継承（Java脳）
+type Animal struct {
+    Name string
+}
+func (a *Animal) Speak() string { return "..." }
+
+type Dog struct {
+    Animal  // 埋め込みで「継承」のつもり
+}
+// Dog.Speak() は Animal.Speak() を呼ぶだけ
+// オーバーライドしても Animal のメソッド内からは呼ばれない
+
+// interface を embed しすぎる
+type HugeService interface {
+    UserRepo
+    OrderRepo
+    PaymentRepo
+    NotificationService
+    // → 何でもできるモンスターinterface
+}`,
+    goodCode: `// Go らしい合成
+type Logger struct{ w io.Writer }
+func (l *Logger) Log(msg string) { fmt.Fprintln(l.w, msg) }
+
+type Server struct {
+    Logger  // メソッド昇格: Server.Log() が使える
+    db  *sql.DB
+    mux *http.ServeMux
+}
+
+// メソッドのオーバーライド（シャドウイング）
+func (s *Server) Log(msg string) {
+    s.Logger.Log("[SERVER] " + msg)  // 明示的に親を呼ぶ
+}
+
+// interface の合成（小さく保つ）
+type Reader interface { Read(p []byte) (n int, err error) }
+type Writer interface { Write(p []byte) (n int, err error) }
+type ReadWriter interface {
+    Reader
+    Writer
+}
+
+// 必要な interface だけ受け取る
+func process(r io.Reader) error { /* ... */ }`,
+    interviewPoints: [
+      {
+        point: "Go の埋め込みは継承ではなく合成（has-a）。メソッド昇格で委譲を省略できる",
+        detail:
+          "埋め込んだ型のメソッドが外側の型に昇格する。ただし埋め込まれた型のメソッド内で this/self は埋め込まれた型を指す。ポリモーフィズムは interface で実現する。",
+      },
+      {
+        point: "interface の埋め込みで小さな interface を合成する（io.ReadWriter パターン）",
+        detail:
+          "io.Reader + io.Writer = io.ReadWriter。大きな interface を最初から定義せず、小さな interface を組み合わせる。Go 標準ライブラリがこのパターンを多用している。",
+      },
+      {
+        point: "メソッドのシャドウイングでオーバーライドに近い動作が可能",
+        detail:
+          "外側の型で同名メソッドを定義すると、埋め込まれた型のメソッドを隠す。ただし埋め込まれた型の他のメソッドからは元のメソッドが呼ばれる（仮想関数ではない）。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// struct の埋め込みと interface の合成\ntype Reader interface { Read(p []byte) (int, error) }\ntype Writer interface { Write(p []byte) (int, error) }\n\n// interface の合成\ntype ReadWriter ____ {\n    Reader\n    ____\n}\n\n// struct の埋め込み\ntype Server struct {\n    ____  // Logger のメソッドが昇格\n    db *sql.DB\n}",
+        blanks: ["interface", "Writer", "Logger"],
+        explanation:
+          "interface 同士を埋め込んで合成できる。struct に別の型を埋め込むとそのメソッドが昇格し、直接呼び出せる。",
+      },
+    ],
+  },
+
+  // ── 設計（追加2） ──────────────────────────────────────
+
+  "design-functional-options": {
+    id: "design-functional-options",
+    section: "design",
+    title: "Functional Options パターン",
+    tag: "設計",
+    summary:
+      "可変長引数で設定を渡す Go のイディオム。API の後方互換を保ちつつ柔軟なオプション指定を可能にする。",
+    why: "コンストラクタの引数が増えると可読性が低下し、デフォルト値の管理が困難になる。Functional Options は Go の可変長引数と関数型を活かした解決策。",
+    tradeoffs: [
+      {
+        title: "Functional Options vs Config struct",
+        desc: "Config struct はシンプルで JSON/YAML から直接マッピングできる。Functional Options はバリデーション内蔵・後方互換性に優れるが、オプションが少ない場合は過剰。",
+      },
+    ],
+    badCode: `// 引数が増え続けるコンストラクタ
+func NewServer(addr string, port int, timeout time.Duration,
+    maxConns int, logger *log.Logger, tls bool) *Server {
+    // ...
+}
+
+// 呼び出し側が意味不明
+srv := NewServer("localhost", 8080, 30*time.Second, 100, nil, false)
+
+// Config struct のゼロ値問題
+type Config struct {
+    Port    int    // 0 は未設定? それとも意図的?
+    Timeout int    // 秒? ミリ秒?
+}
+srv := NewServer(Config{})  // 全部ゼロ値で起動`,
+    goodCode: `// Functional Options パターン
+type Server struct {
+    addr    string
+    port    int
+    timeout time.Duration
+    maxConn int
+}
+
+type Option func(*Server)
+
+func WithPort(port int) Option {
+    return func(s *Server) { s.port = port }
+}
+
+func WithTimeout(d time.Duration) Option {
+    return func(s *Server) { s.timeout = d }
+}
+
+func WithMaxConn(n int) Option {
+    return func(s *Server) { s.maxConn = n }
+}
+
+func NewServer(addr string, opts ...Option) *Server {
+    s := &Server{
+        addr:    addr,
+        port:    8080,          // デフォルト値
+        timeout: 30 * time.Second,
+        maxConn: 100,
+    }
+    for _, opt := range opts {
+        opt(s)
+    }
+    return s
+}
+
+// 読みやすい呼び出し
+srv := NewServer("localhost",
+    WithPort(9090),
+    WithTimeout(60 * time.Second),
+)`,
+    interviewPoints: [
+      {
+        point: "Functional Options は Go で最も一般的な設定パターン。grpc-go, zap 等が採用",
+        detail:
+          "Dave Cheney が提唱。type Option func(*T) の型定義と、With... のファクトリ関数で構成。新しいオプション追加が既存コードに影響しない（後方互換）。",
+      },
+      {
+        point: "デフォルト値はコンストラクタ内で設定し、Option で上書きする",
+        detail:
+          "NewXxx 内で安全なデフォルト値を設定した後、opts をループで適用。バリデーションは Option 関数内または全 Option 適用後に行う。",
+      },
+      {
+        point: "Config struct が適切な場合: 設定ファイルからの読み込みが主目的のとき",
+        detail:
+          "JSON/YAML/TOML からの設定読み込みには Config struct が自然。Functional Options はプログラマティックな API 設計向き。両方を組み合わせることも可能。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// Functional Options パターン\ntype ____ func(*Server)\n\nfunc WithPort(port int) Option {\n    return func(s *Server) { s.____ = port }\n}\n\nfunc NewServer(addr string, opts ...____) *Server {\n    s := &Server{addr: addr, port: 8080}\n    for _, opt := range opts {\n        ____(s)\n    }\n    return s\n}",
+        blanks: ["Option", "port", "Option", "opt"],
+        explanation:
+          "Option は func(*Server) の型エイリアス。NewServer で可変長引数として受け取り、ループで適用する。",
+      },
+    ],
+  },
+
+  "design-di": {
+    id: "design-di",
+    section: "design",
+    title: "依存性注入 (DI) の Go 流",
+    tag: "設計",
+    summary:
+      "Go の DI はコンストラクタ引数で依存を渡すだけ。フレームワーク不要。interface で抽象化しテスト可能にする。",
+    why: "DI フレームワーク（wire, fx）は大規模プロジェクトでは有用だが、Go では明示的なコンストラクタ注入が最も標準的で追いやすい。",
+    tradeoffs: [
+      {
+        title: "手動 DI vs フレームワーク DI",
+        desc: "手動は追いやすいが main の配線コードが長くなる。wire/fx は自動配線だが学習コストとマジック感がある。50+ の依存で検討。",
+      },
+    ],
+    badCode: `// グローバル変数で依存を持つ（テスト不可能）
+var db = connectDB()
+var cache = connectRedis()
+
+func GetUser(id string) (*User, error) {
+    // db をグローバルから参照 → テストで差し替え不可
+    return db.QueryUser(id)
+}
+
+// パッケージレベルの init() で初期化
+func init() {
+    db = mustConnectDB()  // テスト時にも実行される
+}`,
+    goodCode: `// コンストラクタで依存を注入（Go の標準的な DI）
+type UserService struct {
+    repo  UserRepository  // interface で受け取る
+    cache Cache
+}
+
+// interface は消費者側で定義
+type UserRepository interface {
+    FindByID(ctx context.Context, id string) (*User, error)
+}
+
+func NewUserService(repo UserRepository, cache Cache) *UserService {
+    return &UserService{repo: repo, cache: cache}
+}
+
+// main() で配線
+func main() {
+    db := connectDB()
+    repo := postgres.NewUserRepo(db)
+    cache := redis.NewCache(redisClient)
+    svc := NewUserService(repo, cache)
+    handler := NewUserHandler(svc)
+    // ...
+}
+
+// テストでは mock を注入
+func TestGetUser(t *testing.T) {
+    mock := &mockUserRepo{user: testUser}
+    svc := NewUserService(mock, noopCache)
+    // ...
+}`,
+    interviewPoints: [
+      {
+        point: "Go の DI は「コンストラクタ引数で渡す」だけ。フレームワーク不要が基本",
+        detail:
+          "NewXxx(dep1, dep2) で依存を受け取り、struct に保持する。Go は暗黙的 interface 実装のおかげで、後から interface を定義してもコード変更が不要。",
+      },
+      {
+        point: "interface は消費者側で定義する（Accept interfaces, return structs）",
+        detail:
+          "依存元（実装側）ではなく、依存先（利用側）が必要なメソッドだけの interface を定義する。これにより最小限の結合度になる。Go Proverb のひとつ。",
+      },
+      {
+        point: "wire や fx は 50+ の依存がある大規模プロジェクトで検討",
+        detail:
+          "Google の wire はコード生成型、Uber の fx はリフレクション型。小〜中規模では手動 DI で十分。main.go の配線コードが 100行を超えたら導入を検討する目安。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// Go 流の DI\ntype UserRepository ____ {\n    FindByID(ctx context.Context, id string) (*User, error)\n}\n\ntype UserService struct {\n    repo UserRepository  // interface で保持\n}\n\nfunc ____UserService(repo UserRepository) *UserService {\n    return &UserService{____: repo}\n}",
+        blanks: ["interface", "New", "repo"],
+        explanation:
+          "interface で依存を抽象化し、コンストラクタ（New関数）で注入する。これが Go の標準的な DI パターン。",
+      },
+    ],
+  },
+
+  // ── 並行処理（追加2） ─────────────────────────────────
+
+  "concurrency-pipeline": {
+    id: "concurrency-pipeline",
+    section: "concurrency",
+    title: "Pipeline / Fan-out / Fan-in",
+    tag: "設計",
+    summary:
+      "channel で処理ステージを繋ぐ Pipeline パターン。Fan-out で並列化し、Fan-in で集約する。",
+    why: "データ処理パイプラインは ETL、ストリーム処理、画像処理で頻出。channel ベースの設計で各ステージを独立にスケール可能。",
+    tradeoffs: [
+      {
+        title: "Pipeline vs 直列処理",
+        desc: "Pipeline はステージごとに並行実行できるが複雑になる。I/O バウンドなら効果大。CPU バウンドかつ単純なら直列の方がシンプル。",
+      },
+      {
+        title: "Fan-out の並列度",
+        desc: "goroutine を増やしすぎると context switch とメモリが増加。CPU コア数や外部 API のレート制限に合わせて調整。",
+      },
+    ],
+    badCode: `// 直列処理（I/O待ちが積み重なる）
+func processAll(urls []string) []Result {
+    var results []Result
+    for _, url := range urls {
+        data := fetch(url)        // 1つずつ待つ
+        parsed := parse(data)     // 前の fetch が終わるまで idle
+        result := transform(parsed)
+        results = append(results, result)
+    }
+    return results  // 100 URL → 100 * latency
+}
+
+// goroutine 無制限生成
+for _, url := range urls {
+    go func(u string) {
+        // 10万 URL → 10万 goroutine → OOM / rate limit
+        results <- fetch(u)
+    }(url)
+}`,
+    goodCode: `// Pipeline パターン
+func gen(urls []string) <-chan string {
+    out := make(chan string)
+    go func() {
+        defer close(out)
+        for _, u := range urls {
+            out <- u
+        }
+    }()
+    return out
+}
+
+func fetch(ctx context.Context, in <-chan string) <-chan Data {
+    out := make(chan Data)
+    go func() {
+        defer close(out)
+        for u := range in {
+            data, err := httpGet(ctx, u)
+            if err == nil { out <- data }
+        }
+    }()
+    return out
+}
+
+// Fan-out: 複数の goroutine で並列処理
+// Fan-in: 結果を1つの channel に集約
+func fanOut(ctx context.Context, in <-chan string, n int) <-chan Data {
+    var wg sync.WaitGroup
+    merged := make(chan Data)
+
+    for i := 0; i < n; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for u := range in {
+                data, err := httpGet(ctx, u)
+                if err == nil { merged <- data }
+            }
+        }()
+    }
+
+    go func() { wg.Wait(); close(merged) }()
+    return merged
+}
+
+// 使用例
+urls := gen(urlList)
+results := fanOut(ctx, urls, 10)  // 10並列`,
+    interviewPoints: [
+      {
+        point: "Pipeline は channel で処理ステージを接続。各ステージは独立した goroutine",
+        detail:
+          "gen() → stage1() → stage2() → consumer の形。各関数は <-chan T を受け取り <-chan U を返す。close で終了を伝播。context でキャンセルも可能。",
+      },
+      {
+        point: "Fan-out は1つの channel を複数 goroutine で読む。Fan-in は複数 channel を1つに集約",
+        detail:
+          "Fan-out: N個の worker が同じ in channel から読む（channel は goroutine安全）。Fan-in: sync.WaitGroup で全 worker の完了を待ち merged channel を close する。",
+      },
+      {
+        point: "Pipeline の終了は close の伝播と context キャンセルの2つで制御",
+        detail:
+          "正常終了: 上流の close が range で検知され下流に伝播。異常終了: context.Cancel() で全ステージが中断。defer close(out) で確実に channel を閉じる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// Fan-out / Fan-in パターン\nfunc fanOut(in <-chan string, n int) <-chan Result {\n    var ____ sync.WaitGroup\n    merged := make(chan Result)\n\n    for i := 0; i < n; i++ {\n        wg.____(1)\n        go func() {\n            defer wg.____()\n            for item := range in {\n                merged <- process(item)\n            }\n        }()\n    }\n\n    go func() { wg.____(); close(merged) }()\n    return merged\n}",
+        blanks: ["wg", "Add", "Done", "Wait"],
+        explanation:
+          "WaitGroup で N 個の worker goroutine を管理。全 worker が Done() したら merged channel を close して終了を通知する。",
+      },
+    ],
+  },
+
+  // ── パフォーマンス（追加2） ─────────────────────────────
+
+  "perf-gc-tuning": {
+    id: "perf-gc-tuning",
+    section: "performance",
+    title: "GC チューニング (GOGC / GOMEMLIMIT)",
+    tag: "最適化",
+    summary:
+      "Go の GC は並行マーク&スイープ。GOGC と GOMEMLIMIT で頻度とメモリ上限を制御する。",
+    why: "デフォルト設定で十分な場合が多いが、低レイテンシ要求やメモリ制約のある環境では GC チューニングがスループットに直結する。",
+    tradeoffs: [
+      {
+        title: "GOGC 高い vs 低い",
+        desc: "高い（200+）= GC頻度下がりスループット向上、メモリ使用増。低い（50）= メモリ節約、CPU負荷増。",
+      },
+      {
+        title: "GOMEMLIMIT の設定",
+        desc: "コンテナのメモリ上限の 80-90% に設定。低すぎると GC thrashing、高すぎると OOM Kill。",
+      },
+    ],
+    badCode: `// GC を意識しないコード（大量のヒープ割り当て）
+func processRequests(reqs []Request) []Response {
+    var responses []Response
+    for _, req := range reqs {
+        // 毎回新しいバッファを確保 → GC 負荷
+        buf := make([]byte, 4096)
+        result := process(req, buf)
+        responses = append(responses, result)
+    }
+    return responses
+}
+
+// string と []byte の無駄な変換
+func handler(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)    // []byte
+    str := string(body)               // コピー発生
+    data := []byte(str)               // また コピー
+    json.Unmarshal(data, &req)
+}`,
+    goodCode: `// sync.Pool でバッファを再利用
+var bufPool = sync.Pool{
+    New: func() any { return make([]byte, 0, 4096) },
+}
+
+func processRequests(reqs []Request) []Response {
+    responses := make([]Response, 0, len(reqs))
+    for _, req := range reqs {
+        buf := bufPool.Get().([]byte)
+        buf = buf[:0]  // リセット
+        result := process(req, buf)
+        bufPool.Put(buf)
+        responses = append(responses, result)
+    }
+    return responses
+}
+
+// 環境変数で GC チューニング
+// GOGC=200        → GC 頻度を下げる（デフォルト100）
+// GOMEMLIMIT=1GiB → メモリ上限を設定（Go 1.19+）
+//
+// Dockerfile:
+// ENV GOGC=200
+// ENV GOMEMLIMIT=1600MiB  # 2GiB コンテナの 80%
+//
+// runtime から動的に変更も可能
+// debug.SetGCPercent(200)
+// debug.SetMemoryLimit(1600 << 20)`,
+    interviewPoints: [
+      {
+        point: "GOGC はヒープが前回 GC 後の N% 増えたら GC を実行する設定（デフォルト100）",
+        detail:
+          "GOGC=100 は前回GC後のライブヒープの 100% 増（2倍）で次のGCが走る。GOGC=200 なら 3倍まで許容。GOGC=off で GC を無効化（テスト用）。",
+      },
+      {
+        point: "GOMEMLIMIT (Go 1.19+) でソフトメモリ上限を設定。コンテナ環境で必須",
+        detail:
+          "GOMEMLIMIT を設定すると、その上限に近づくと積極的に GC が走る。GOGC=off + GOMEMLIMIT で「メモリ上限までは GC しない」戦略も可能（バッチ処理向き）。",
+      },
+      {
+        point: "sync.Pool でオブジェクトを再利用し GC 負荷を下げる",
+        detail:
+          "sync.Pool は GC 間でオブジェクトを保持する一時キャッシュ。[]byte バッファ、JSON エンコーダ、正規表現のマッチャーなど高頻度で生成・破棄するものに有効。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// sync.Pool でバッファ再利用\nvar bufPool = ____.Pool{\n    New: func() any { return make([]byte, 0, 4096) },\n}\n\nfunc process() {\n    buf := bufPool.____(). ([]byte)\n    defer bufPool.____(buf)\n    // buf を使って処理\n}",
+        blanks: ["sync", "Get", "Put"],
+        explanation:
+          "sync.Pool の Get() でオブジェクトを取得（なければ New が呼ばれる）、Put() で返却する。GC 間でオブジェクトを再利用しヒープ割り当てを削減。",
+      },
+    ],
+  },
+
+  // ── テスト（追加2） ───────────────────────────────────
+
+  "test-fuzzing": {
+    id: "test-fuzzing",
+    section: "testing",
+    title: "Fuzzing テスト (Go 1.18+)",
+    tag: "計測",
+    summary:
+      "ランダムな入力を自動生成してバグを発見する Fuzz テスト。Go 1.18 で標準ライブラリに統合。",
+    why: "手動テストでは思いつかないエッジケース（不正UTF-8、巨大入力、空文字列）を自動で発見できる。パーサーやバリデータに特に有効。",
+    tradeoffs: [
+      {
+        title: "Fuzz テストの実行時間",
+        desc: "デフォルトは無制限に実行。CI では -fuzztime=30s 等で制限する。長時間実行するほどカバレッジが上がるが CI が遅くなる。",
+      },
+    ],
+    badCode: `// 手動テストでは限界がある
+func TestParseDate(t *testing.T) {
+    tests := []struct{
+        input string
+        want  time.Time
+    }{
+        {"2024-01-01", time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+        {"2024-12-31", time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)},
+        // ← "2024-02-30" は? "0000-00-00" は? "\xff\xfe" は?
+        // 人間が思いつく範囲には限界がある
+    }
+    for _, tt := range tests {
+        got, err := ParseDate(tt.input)
+        if err != nil { t.Fatal(err) }
+        if !got.Equal(tt.want) { t.Errorf("...") }
+    }
+}`,
+    goodCode: `// Fuzz テスト（Go 1.18+）
+func FuzzParseDate(f *testing.F) {
+    // シードコーパスを追加（既知の入力）
+    f.Add("2024-01-01")
+    f.Add("2024-12-31")
+    f.Add("")
+    f.Add("not-a-date")
+
+    f.Fuzz(func(t *testing.T, input string) {
+        result, err := ParseDate(input)
+        if err != nil {
+            return  // パースエラーは正常
+        }
+        // 逆変換して一致するか検証（round-trip test）
+        formatted := result.Format("2006-01-02")
+        if formatted != input {
+            t.Errorf("round-trip failed: %q -> %v -> %q",
+                input, result, formatted)
+        }
+    })
+}
+
+// 実行方法
+// go test -fuzz=FuzzParseDate           # 無制限実行
+// go test -fuzz=FuzzParseDate -fuzztime=30s  # 30秒
+// go test -fuzz=FuzzParseDate -fuzztime=1000x # 1000回
+//
+// 発見したクラッシュは testdata/fuzz/ に自動保存
+// → 次回以降の go test で自動的にリプレイされる`,
+    interviewPoints: [
+      {
+        point: "Fuzz テストはランダム入力でエッジケースを自動発見。パーサー・バリデータに最適",
+        detail:
+          "Go 1.18 で testing.F が追加。FuzzXxx(f *testing.F) で定義。f.Add() でシードを追加し、f.Fuzz() でテスト関数を定義。ランタイムが自動的に入力を変異させる。",
+      },
+      {
+        point: "発見したクラッシュは testdata/fuzz/ に自動保存され、回帰テストになる",
+        detail:
+          "Fuzz で発見したクラッシュ入力は testdata/fuzz/FuzzXxx/ に保存される。通常の go test でもリプレイされるため、修正後の回帰テストとして機能する。",
+      },
+      {
+        point: "round-trip test（変換 → 逆変換 → 一致確認）が Fuzz の代表的な検証方法",
+        detail:
+          "Parse → Format → 一致を検証。Marshal → Unmarshal → DeepEqual。エンコード → デコード → 一致。入力に対する具体的な期待値が不要なので Fuzz に適している。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// Fuzz テストの定義\nfunc FuzzReverse(f *testing.____) {\n    f.____(\"hello\")  // シードコーパス\n    f.____(\"\" )\n\n    f.Fuzz(func(t *testing.T, input string) {\n        rev := Reverse(input)\n        doubleRev := Reverse(rev)\n        if input != doubleRev {\n            t.Errorf(\"double reverse mismatch\")\n        }\n    })\n}",
+        blanks: ["F", "Add", "Add"],
+        explanation:
+          "testing.F を使って Fuzz テストを定義。f.Add() でシード入力を追加し、f.Fuzz() でランダム入力によるテストを実行する。",
+      },
+    ],
+  },
+
+  // ── アンチパターン（追加2） ────────────────────────────
+
+  "anti-init-abuse": {
+    id: "anti-init-abuse",
+    section: "antipatterns",
+    title: "init() の濫用",
+    tag: "NG",
+    summary:
+      "init() はパッケージ読み込み時に暗黙実行。テスト困難・順序不定・副作用の温床になる。",
+    why: "init() は暗黙的に実行されるため制御できない。DB接続やHTTPコールを init() で行うと、テスト時にも実行されて予期しない動作を引き起こす。",
+    tradeoffs: [],
+    badCode: `// init() で DB 接続（テスト時にも実行される）
+var db *sql.DB
+
+func init() {
+    var err error
+    db, err = sql.Open("postgres", os.Getenv("DB_URL"))
+    if err != nil {
+        log.Fatal(err)  // テスト時にクラッシュ
+    }
+}
+
+// init() でグローバル変数を変更
+var config Config
+
+func init() {
+    data, _ := os.ReadFile("config.json")
+    json.Unmarshal(data, &config)
+    // ファイルがないとゼロ値で動く（サイレント障害）
+}
+
+// 複数ファイルの init() → 実行順序が不定
+// a.go: func init() { x = 1 }
+// b.go: func init() { x = 2 }  // どちらが後?`,
+    goodCode: `// 明示的な初期化関数
+func NewDB(dsn string) (*sql.DB, error) {
+    db, err := sql.Open("postgres", dsn)
+    if err != nil {
+        return nil, fmt.Errorf("connect db: %w", err)
+    }
+    if err := db.Ping(); err != nil {
+        return nil, fmt.Errorf("ping db: %w", err)
+    }
+    return db, nil
+}
+
+// main() で明示的に呼ぶ
+func main() {
+    db, err := NewDB(os.Getenv("DB_URL"))
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+    // ...
+}
+
+// init() が許容されるケース（稀）
+func init() {
+    // 1. 副作用のない登録のみ
+    sql.Register("custom", &customDriver{})
+    // 2. 環境変数の読み込み（計算のみ）
+    // 3. パッケージレベルの正規表現コンパイル
+}`,
+    interviewPoints: [
+      {
+        point: "init() はテスト困難・順序不定・暗黙実行の3つの問題がある",
+        detail:
+          "init() はパッケージが import されるだけで実行される。テスト時に DB接続が走る、複数 init() の実行順序がファイル名依存、副作用が隠れて追跡困難。",
+      },
+      {
+        point: "init() の代わりに New 関数や明示的な初期化関数を使う",
+        detail:
+          "NewDB(dsn), LoadConfig(path) のように引数を受け取る関数にする。テスト時にモック値を渡せる。エラーハンドリングも呼び出し側で制御可能。",
+      },
+      {
+        point: "init() が許容されるのは副作用のない登録のみ（sql.Register, flag 等）",
+        detail:
+          "database/sql のドライバ登録、image パッケージのフォーマット登録など、Go 標準ライブラリが init() を使うパターンはある。ただしネットワークアクセスやファイルI/Oは絶対に入れない。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// init() の代わりに明示的な初期化\n// Bad: func ____() { db = connectDB() }\n\n// Good: 明示的な関数\nfunc ____DB(dsn string) (*sql.DB, error) {\n    db, err := sql.Open(\"postgres\", dsn)\n    if err != nil {\n        return nil, fmt.Errorf(\"connect: %____\", err)\n    }\n    return db, nil\n}",
+        blanks: ["init", "New", "w"],
+        explanation:
+          "init() の暗黙実行を避け、New 関数で明示的に初期化する。%w でエラーをラップしてコンテキストを付加する。",
+      },
+    ],
+  },
+
+  // ── 面接対策（追加） ──────────────────────────────────
+
+  "interview-error-handling": {
+    id: "interview-error-handling",
+    section: "interview",
+    title: "面接: エラーハンドリング設計を語る",
+    tag: "まとめ",
+    summary:
+      "Go のエラー設計を体系的に説明できるようにする。errors.Is/As/Join、sentinel error、カスタムエラー型。",
+    why: "エラーハンドリングは Go の面接で最も聞かれるトピック。設計思想（例外を使わない理由）から実装パターンまで一貫して語れることが求められる。",
+    tradeoffs: [
+      {
+        title: "sentinel error vs カスタムエラー型",
+        desc: "sentinel（var ErrNotFound = errors.New(...)）は単純で errors.Is で判定。カスタム型はフィールドに詳細情報を持てるが定義コストが高い。",
+      },
+    ],
+    badCode: `// エラーを文字列で比較（バージョンアップで壊れる）
+if err.Error() == "not found" { ... }
+
+// エラーを握り潰す
+result, _ := doSomething()
+
+// 全てのエラーに panic
+if err != nil { panic(err) }
+
+// コンテキストなしで返す
+func getUser(id string) (*User, error) {
+    row := db.QueryRow("SELECT ...", id)
+    return scanUser(row)  // どこで失敗したか分からない
+}`,
+    goodCode: `// Sentinel Error: パッケージレベルの定数エラー
+var ErrNotFound = errors.New("user not found")
+var ErrDuplicate = errors.New("duplicate entry")
+
+// カスタムエラー型: 詳細情報を持つ
+type ValidationError struct {
+    Field   string
+    Message string
+}
+func (e *ValidationError) Error() string {
+    return fmt.Sprintf("validation: %s: %s", e.Field, e.Message)
+}
+
+// エラーラッピング: コンテキストを付加
+func GetUser(ctx context.Context, id string) (*User, error) {
+    user, err := repo.FindByID(ctx, id)
+    if err != nil {
+        return nil, fmt.Errorf("get user %s: %w", id, err)
+    }
+    return user, nil
+}
+
+// errors.Is で sentinel 判定
+if errors.Is(err, ErrNotFound) { /* 404 */ }
+
+// errors.As でカスタム型を取り出す
+var ve *ValidationError
+if errors.As(err, &ve) {
+    // ve.Field, ve.Message にアクセス
+}
+
+// Go 1.20+ errors.Join で複数エラーを結合
+errs := errors.Join(err1, err2, err3)`,
+    interviewPoints: [
+      {
+        point: "Go が例外ではなく戻り値でエラーを返す理由: 明示性・制御フロー・合成可能性",
+        detail:
+          "例外は暗黙的に伝播するため制御フローが読めなくなる。Go は if err != nil で明示的に処理を強制する。try-catch の暗黙スコープより、呼び出し側が判断する方が Go の哲学に合う。",
+      },
+      {
+        point: "errors.Is は値の比較（sentinel）、errors.As は型の取得（カスタムエラー）",
+        detail:
+          "errors.Is(err, target) はラップされたエラーチェーンを辿って target と一致するか判定。errors.As(err, &target) は型アサーションのラップ版。Go 1.13 で追加。",
+      },
+      {
+        point: "fmt.Errorf(\"...: %w\", err) でエラーをラップし、コンテキストを付加する",
+        detail:
+          "%w で Unwrap 可能なエラーを生成。呼び出しチェーン: get user 123: find by id: sql: no rows → 問題箇所が追跡可能。%v だと Unwrap できないので errors.Is/As が効かない。",
+      },
+      {
+        point: "errors.Join (Go 1.20+) で複数エラーを1つに結合できる",
+        detail:
+          "バリデーションで複数フィールドのエラーを集約、並行処理の複数エラーをまとめる。errors.Is/As は Join されたエラー全てに対して検査する。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// エラーハンドリングの Go イディオム\nvar ErrNotFound = errors.____(\"not found\")\n\nfunc GetUser(id string) (*User, error) {\n    u, err := repo.Find(id)\n    if err != nil {\n        return nil, fmt.Errorf(\"get user: %__\", err)\n    }\n    return u, nil\n}\n\n// 判定\nif errors.____(err, ErrNotFound) { /* 404 */ }",
+        blanks: ["New", "w", "Is"],
+        explanation:
+          "errors.New で sentinel error を定義、%w でラップしてコンテキスト付加、errors.Is でチェーンを辿って判定。Go エラーの基本3点セット。",
+      },
+    ],
+  },
+
+  // ── 実務パターン ──────────────────────────────────────
+
+  "practical-slog": {
+    id: "practical-slog",
+    section: "practical",
+    title: "構造化ログ (slog)",
+    tag: "実務頻出",
+    summary:
+      "Go 1.21 で追加された標準の構造化ログパッケージ。JSON出力・レベル制御・コンテキスト連携が標準で可能。",
+    why: "log.Println は非構造化で検索困難。slog は標準ライブラリで構造化ログを提供し、外部ライブラリ（zap, zerolog）の置き換え候補。",
+    tradeoffs: [
+      {
+        title: "slog vs zap/zerolog",
+        desc: "slog は標準で依存ゼロだが zap より低速。高スループット（10万msg/s超）なら zap。通常のサービスなら slog で十分。",
+      },
+    ],
+    badCode: `// 非構造化ログ（grep 困難）
+log.Printf("user login: id=%s name=%s ip=%s",
+    user.ID, user.Name, r.RemoteAddr)
+// → "2024/01/01 12:00:00 user login: id=123 name=bob ip=10.0.0.1"
+// → フィールドの区切りが曖昧。パースが困難
+
+// ログレベルなし
+log.Println("starting server...")      // INFO?
+log.Println("db connection failed")    // ERROR?
+log.Println("retrying in 5s")          // WARN?
+
+// fmt.Errorf のログ出力（構造化されない）
+log.Printf("error: %v", err)`,
+    goodCode: `// slog: 構造化ログ（Go 1.21+）
+import "log/slog"
+
+// JSON ハンドラで構造化出力
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelInfo,
+}))
+slog.SetDefault(logger)
+
+// 構造化ログの出力
+slog.Info("user login",
+    "user_id", user.ID,
+    "name", user.Name,
+    "ip", r.RemoteAddr,
+)
+// → {"time":"...","level":"INFO","msg":"user login",
+//    "user_id":"123","name":"bob","ip":"10.0.0.1"}
+
+// エラーログ
+slog.Error("db connection failed",
+    "error", err,
+    "retry_in", "5s",
+)
+
+// context からログ属性を取得
+func handler(w http.ResponseWriter, r *http.Request) {
+    logger := slog.With("request_id", r.Header.Get("X-Request-ID"))
+    logger.Info("handling request", "method", r.Method)
+}
+
+// グループでネスト
+slog.Info("request",
+    slog.Group("user",
+        slog.String("id", "123"),
+        slog.String("role", "admin"),
+    ),
+)
+// → {"msg":"request","user":{"id":"123","role":"admin"}}`,
+    interviewPoints: [
+      {
+        point: "slog は Go 1.21 で追加された標準の構造化ログ。log/slog パッケージ",
+        detail:
+          "TextHandler（人間可読）と JSONHandler（機械可読）を標準提供。slog.Info, slog.Error, slog.Warn, slog.Debug の4レベル。key-value ペアで構造化データを出力。",
+      },
+      {
+        point: "slog.With() でロガーに共通属性を付加し、リクエストスコープのログを実現",
+        detail:
+          "logger := slog.With('request_id', reqID) で全ログに request_id を付加。context.Context と組み合わせてリクエスト単位のトレーサビリティを実現する。",
+      },
+      {
+        point: "slog.Handler interface を実装してカスタムハンドラを作成可能",
+        detail:
+          "Handler interface は Handle(ctx, Record) error メソッドを持つ。既存の zap/zerolog のバックエンドを slog のフロントエンドで使うアダプタも作成可能。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// slog で構造化ログ\nimport \"log/____\"\n\nlogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))\nslog.SetDefault(logger)\n\nslog.____(\"user login\",\n    \"user_id\", user.ID,\n    \"ip\", r.RemoteAddr,\n)\n\n// リクエストスコープのロガー\nreqLogger := slog.____(\"request_id\", reqID)",
+        blanks: ["slog", "Info", "With"],
+        explanation:
+          "log/slog パッケージの JSONHandler で構造化ログを出力。slog.Info で key-value ペア、slog.With でロガーに共通属性を付加。",
+      },
+    ],
+  },
+
+  "practical-http-client": {
+    id: "practical-http-client",
+    section: "practical",
+    title: "HTTP クライアント設計",
+    tag: "実務頻出",
+    summary:
+      "http.DefaultClient は本番で使わない。タイムアウト・リトライ・コネクションプール設定が必須。",
+    why: "デフォルトの http.Client はタイムアウトなし・リトライなしで、外部 API 障害時にハングする。本番環境では必ずカスタム設定が必要。",
+    tradeoffs: [
+      {
+        title: "タイムアウト設定",
+        desc: "短すぎると正常なレスポンスもタイムアウト。長すぎると障害時に goroutine が詰まる。P99 レイテンシの 2-3 倍が目安。",
+      },
+    ],
+    badCode: `// DefaultClient を使用（タイムアウトなし）
+resp, err := http.Get("https://api.example.com/data")
+// → 外部 API が応答しないと永久にブロック
+
+// レスポンスボディを閉じない
+resp, _ := http.Get(url)
+data, _ := io.ReadAll(resp.Body)
+// resp.Body.Close() を忘れ → コネクションリーク
+
+// リトライなし
+func callAPI(url string) ([]byte, error) {
+    resp, err := http.Get(url)
+    if err != nil {
+        return nil, err  // 一時的な障害でも即エラー
+    }
+    defer resp.Body.Close()
+    return io.ReadAll(resp.Body)
+}`,
+    goodCode: `// 本番用 HTTP クライアント
+client := &http.Client{
+    Timeout: 10 * time.Second,  // 全体のタイムアウト
+    Transport: &http.Transport{
+        MaxIdleConns:        100,
+        MaxIdleConnsPerHost: 10,
+        IdleConnTimeout:     90 * time.Second,
+        TLSHandshakeTimeout: 5 * time.Second,
+    },
+}
+
+// context でリクエスト単位のタイムアウト
+func callAPI(ctx context.Context, url string) ([]byte, error) {
+    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+    defer cancel()
+
+    req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+    if err != nil {
+        return nil, fmt.Errorf("create request: %w", err)
+    }
+
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("do request: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode >= 400 {
+        return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
+    }
+
+    // ボディサイズを制限（DoS 防止）
+    body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+    if err != nil {
+        return nil, fmt.Errorf("read body: %w", err)
+    }
+    return body, nil
+}`,
+    interviewPoints: [
+      {
+        point: "http.DefaultClient はタイムアウトなし。本番では必ず http.Client{Timeout: ...} を設定",
+        detail:
+          "http.Client.Timeout は DNS解決からレスポンス読み取りまでの全体タイムアウト。http.Transport のフィールドで接続・TLSハンドシェイク・レスポンスヘッダの個別タイムアウトも設定可能。",
+      },
+      {
+        point: "http.NewRequestWithContext で context をリクエストに紐づける",
+        detail:
+          "context.WithTimeout でリクエスト単位のタイムアウトを設定。context がキャンセルされると即座にリクエストが中断される。http.Get は context を受け取れないので使わない。",
+      },
+      {
+        point: "resp.Body.Close() は defer で必ず呼ぶ。忘れるとコネクションリーク",
+        detail:
+          "HTTP/1.1 の Keep-Alive コネクションを再利用するには Body を最後まで読み切って Close する必要がある。io.ReadAll + defer resp.Body.Close() が定番パターン。",
+      },
+      {
+        point: "io.LimitReader でレスポンスサイズを制限し、巨大レスポンスによる OOM を防ぐ",
+        detail:
+          "外部 API のレスポンスサイズは信頼できない。io.LimitReader(resp.Body, 1<<20) で 1MB に制限する。超えた場合は io.ReadAll が途中で切れる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "// 本番用 HTTP リクエスト\nctx, cancel := context.____(ctx, 5*time.Second)\ndefer cancel()\n\nreq, _ := http.NewRequestWith____(ctx, \"GET\", url, nil)\nresp, err := client.Do(req)\nif err != nil { return err }\ndefer resp.____.Close()\n\nbody, _ := io.ReadAll(io.____(resp.Body, 1<<20))",
+        blanks: ["WithTimeout", "Context", "Body", "LimitReader"],
+        explanation:
+          "context.WithTimeout でタイムアウト設定、NewRequestWithContext で context を紐づけ、defer Body.Close() で確実にクローズ、LimitReader でサイズ制限。",
+      },
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2899,6 +3848,7 @@ export const SECTIONS: Section[] = [
       "syntax-receiver",
       "syntax-map",
       "syntax-generics",
+      "syntax-struct-embedding",
     ],
   },
   {
@@ -2913,6 +3863,8 @@ export const SECTIONS: Section[] = [
       "design-package",
       "design-graceful-shutdown",
       "design-middleware",
+      "design-functional-options",
+      "design-di",
     ],
   },
   {
@@ -2926,6 +3878,7 @@ export const SECTIONS: Section[] = [
       "concurrency-goroutine-leak",
       "concurrency-sync",
       "concurrency-rate-limit",
+      "concurrency-pipeline",
     ],
   },
   {
@@ -2933,14 +3886,14 @@ export const SECTIONS: Section[] = [
     title: "パフォーマンス",
     icon: "⚡",
     description: "benchmark / pprof / memory",
-    topicIds: ["perf-benchmark", "perf-pprof", "perf-memory", "perf-string"],
+    topicIds: ["perf-benchmark", "perf-pprof", "perf-memory", "perf-string", "perf-gc-tuning"],
   },
   {
     id: "testing",
     title: "テスト",
     icon: "✓",
     description: "table-driven / mock / parallel",
-    topicIds: ["test-table-driven", "test-mock", "test-helper"],
+    topicIds: ["test-table-driven", "test-mock", "test-helper", "test-fuzzing"],
   },
   {
     id: "antipatterns",
@@ -2952,6 +3905,7 @@ export const SECTIONS: Section[] = [
       "anti-global-state",
       "anti-panic",
       "anti-over-engineering",
+      "anti-init-abuse",
     ],
   },
   {
@@ -2959,7 +3913,7 @@ export const SECTIONS: Section[] = [
     title: "面接対策",
     icon: "◎",
     description: "技術面接で話せるようにする",
-    topicIds: ["interview-goroutine", "interview-gc", "interview-interface"],
+    topicIds: ["interview-goroutine", "interview-gc", "interview-interface", "interview-error-handling"],
   },
   {
     id: "toolchain",
@@ -2967,6 +3921,13 @@ export const SECTIONS: Section[] = [
     icon: "⚙",
     description: "linter / go generate / 開発ツール",
     topicIds: ["tools-linter", "tools-go-generate"],
+  },
+  {
+    id: "practical",
+    title: "実務パターン",
+    icon: "⊕",
+    description: "実務で頻出するパターンとベストプラクティス",
+    topicIds: ["practical-slog", "practical-http-client"],
   },
   {
     id: "summary",
@@ -3002,6 +3963,11 @@ export const RECOMMENDED: Recommendation[] = [
   { id: "concurrency-sync", reason: "sync パッケージで競合を正しく防ぐ" },
   { id: "concurrency-rate-limit", reason: "流量制御で外部API障害を防ぐ" },
   { id: "tools-linter", reason: "golangci-lint でコード品質を自動担保" },
+  { id: "design-functional-options", reason: "Go の設定パターンを理解する" },
+  { id: "concurrency-pipeline", reason: "Pipeline パターンでデータ処理を設計" },
+  { id: "practical-http-client", reason: "外部 API 呼び出しの落とし穴を防ぐ" },
+  { id: "test-fuzzing", reason: "Go 1.18+ の Fuzz テストで品質向上" },
+  { id: "interview-error-handling", reason: "面接でエラー設計を語れるようにする" },
 ];
 
 // ═══════════════════════════════════════════════════════════
