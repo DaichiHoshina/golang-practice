@@ -205,6 +205,7 @@ export function App() {
                 notes={notes}
                 onToggleComplete={toggleComplete}
                 onNoteChange={updateNote}
+                onNavigate={navigate}
               />
             ) : null}
           </div>

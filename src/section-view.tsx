@@ -1,6 +1,6 @@
 import { useState, useMemo } from "hono/jsx/dom";
 import type { Topic, Section, InterviewPoint, Quiz } from "./types";
-import { TOPICS, TAG_BADGE } from "./data";
+import { TOPICS, SECTIONS, TAG_BADGE } from "./data";
 import { HighlightedText } from "./term-highlight";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
@@ -263,6 +263,45 @@ function TradeoffBox({
   );
 }
 
+// ─── Related Topics ──────────────────────────────────────
+
+function RelatedTopics({
+  topic,
+  onNavigate,
+}: {
+  topic: Topic;
+  onNavigate: (id: string) => void;
+}) {
+  // Find topics in the same section (excluding self)
+  const section = SECTIONS.find((s) => s.id === topic.section);
+  const sameSection = (section?.topicIds ?? [])
+    .filter((id) => id !== topic.id)
+    .map((id) => TOPICS[id])
+    .filter(Boolean);
+
+  if (sameSection.length === 0) return null;
+
+  return (
+    <div>
+      <p class="text-xs font-semibold opacity-50 mb-1.5">関連トピック</p>
+      <div class="flex flex-wrap gap-1.5">
+        {sameSection.map((t) => (
+          <button
+            key={t.id}
+            class="badge badge-ghost badge-sm cursor-pointer hover:badge-info transition-colors"
+            onClick={(e: Event) => {
+              e.stopPropagation();
+              onNavigate(topic.section);
+            }}
+          >
+            {t.title}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Topic Card ──────────────────────────────────────────
 
 function TopicCard({
@@ -271,12 +310,14 @@ function TopicCard({
   onToggleComplete,
   note,
   onNoteChange,
+  onNavigate,
 }: {
   topic: Topic;
   completed: boolean;
   onToggleComplete: () => void;
   note: string;
   onNoteChange: (v: string) => void;
+  onNavigate: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
@@ -357,6 +398,9 @@ function TopicCard({
             <QuizSection quizzes={topic.quizzes} />
           )}
 
+          {/* Related Topics */}
+          <RelatedTopics topic={topic} onNavigate={onNavigate} />
+
           {/* Notes */}
           <div>
             <p class="text-xs font-semibold opacity-50 mb-1.5">学習メモ</p>
@@ -385,6 +429,7 @@ interface SectionViewProps {
   notes: Record<string, string>;
   onToggleComplete: (id: string) => void;
   onNoteChange: (id: string, val: string) => void;
+  onNavigate: (id: string) => void;
 }
 
 export function SectionView({
@@ -393,6 +438,7 @@ export function SectionView({
   notes,
   onToggleComplete,
   onNoteChange,
+  onNavigate,
 }: SectionViewProps) {
   const topics = section.topicIds.map((id) => TOPICS[id]).filter(Boolean);
   const doneCount = topics.filter((t) => completed[t.id]).length;
@@ -430,6 +476,7 @@ export function SectionView({
             onToggleComplete={() => onToggleComplete(topic.id)}
             note={notes[topic.id] || ""}
             onNoteChange={(v: string) => onNoteChange(topic.id, v)}
+            onNavigate={onNavigate}
           />
         ))}
       </div>

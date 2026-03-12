@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from "hono/jsx/dom";
+import { useState, useMemo, useCallback, useEffect } from "hono/jsx/dom";
 import type { Quiz } from "./types";
-import { TOPICS } from "./data";
+import { TOPICS, SECTIONS } from "./data";
 import { HighlightedText } from "./term-highlight";
 
 // ─── Collect all quizzes with topic metadata ─────────────
@@ -9,6 +9,7 @@ interface QuizWithMeta {
   quiz: Quiz;
   topicId: string;
   topicTitle: string;
+  sectionId: string;
 }
 
 const ALL_QUIZZES: QuizWithMeta[] = Object.values(TOPICS).flatMap((topic) =>
@@ -16,8 +17,19 @@ const ALL_QUIZZES: QuizWithMeta[] = Object.values(TOPICS).flatMap((topic) =>
     quiz: q,
     topicId: topic.id,
     topicTitle: topic.title,
+    sectionId: topic.section,
   })),
 );
+
+/** Section options for filter */
+const SECTION_OPTIONS = SECTIONS.filter((s) => s.id !== "dashboard")
+  .map((s) => ({
+    id: s.id,
+    title: s.title,
+    icon: s.icon,
+    count: ALL_QUIZZES.filter((q) => q.sectionId === s.id).length,
+  }))
+  .filter((s) => s.count > 0);
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -26,6 +38,12 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function getPool(sectionId: string): QuizWithMeta[] {
+  return sectionId === "all"
+    ? ALL_QUIZZES
+    : ALL_QUIZZES.filter((q) => q.sectionId === sectionId);
 }
 
 // ─── Types ───────────────────────────────────────────────
@@ -46,31 +64,61 @@ interface Props {
 }
 
 export function RandomQuiz({ scores, onScore }: Props) {
+  const [selectedSection, setSelectedSection] = useState<string>("all");
   const [queue, setQueue] = useState<QuizWithMeta[]>(() =>
     shuffle(ALL_QUIZZES),
   );
   const [currentIdx, setCurrentIdx] = useState(0);
   const [openSet, setOpenSet] = useState<Set<number>>(new Set());
 
-  const current = queue[currentIdx];
-  const total = ALL_QUIZZES.length;
+  const handleSectionChange = useCallback((sectionId: string) => {
+    setSelectedSection(sectionId);
+    setQueue(shuffle(getPool(sectionId)));
+    setCurrentIdx(0);
+    setOpenSet(new Set());
+  }, []);
 
-  const correctCount = Object.values(scores).filter(
-    (r) => r === "correct",
+  const current = queue[currentIdx];
+  const pool = useMemo(() => getPool(selectedSection), [selectedSection]);
+  const total = pool.length;
+
+  const filteredScoreEntries = useMemo(() => {
+    if (selectedSection === "all") return Object.entries(scores);
+    return Object.entries(scores).filter(([k]) => {
+      const topicId = k.split("_")[0];
+      return TOPICS[topicId]?.section === selectedSection;
+    });
+  }, [scores, selectedSection]);
+
+  const correctCount = filteredScoreEntries.filter(
+    ([, r]) => r === "correct",
   ).length;
-  const wrongCount = Object.values(scores).filter((r) => r === "wrong").length;
+  const wrongCount = filteredScoreEntries.filter(
+    ([, r]) => r === "wrong",
+  ).length;
   const answered = correctCount + wrongCount;
 
   const qType = current?.quiz.type ?? "text";
   const allOpen = current ? openSet.size >= current.quiz.blanks.length : false;
 
-  const toggleBlank = (idx: number) => {
+  const toggleBlank = useCallback((idx: number) => {
     setOpenSet((prev) => {
       const next = new Set(prev);
       next.add(idx);
       return next;
     });
-  };
+  }, []);
+
+  /** Reveal next unrevealed blank (for keyboard shortcut) */
+  const revealNext = useCallback(() => {
+    if (!current) return;
+    for (let i = 0; i < current.quiz.blanks.length; i++) {
+      if (!openSet.has(i)) {
+        toggleBlank(i);
+        return;
+      }
+    }
+  }, [current, openSet, toggleBlank]);
 
   /** Build inline text with clickable blanks for text type */
   const textElements = useMemo(() => {
@@ -104,7 +152,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
       }
     }
     return result;
-  }, [current, openSet, qType]);
+  }, [current, openSet, qType, toggleBlank]);
 
   const scoreKey = current ? `${current.topicId}_${currentIdx % total}` : "";
 
@@ -119,22 +167,44 @@ export function RandomQuiz({ scores, onScore }: Props) {
               .filter(([, r]) => r === "wrong")
               .map(([k]) => k.split("_")[0]),
           );
-          const priority = ALL_QUIZZES.filter((q) => wrongKeys.has(q.topicId));
-          const rest = ALL_QUIZZES.filter((q) => !wrongKeys.has(q.topicId));
-          setQueue([...shuffle(priority), ...shuffle(rest)]);
+          const p = pool.filter((q) => wrongKeys.has(q.topicId));
+          const rest = pool.filter((q) => !wrongKeys.has(q.topicId));
+          setQueue([...shuffle(p), ...shuffle(rest)]);
           return 0;
         }
         return i + 1;
       });
     },
-    [scoreKey, onScore, scores, queue.length],
+    [scoreKey, onScore, scores, queue.length, pool],
   );
 
   const handleReshuffle = useCallback(() => {
-    setQueue(shuffle(ALL_QUIZZES));
+    setQueue(shuffle(getPool(selectedSection)));
     setCurrentIdx(0);
     setOpenSet(new Set());
-  }, []);
+  }, [selectedSection]);
+
+  // ─── Keyboard shortcuts ────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't capture if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        revealNext();
+      } else if (e.key === "ArrowRight" && allOpen) {
+        e.preventDefault();
+        handleResult("correct");
+      } else if (e.key === "ArrowLeft" && allOpen) {
+        e.preventDefault();
+        handleResult("wrong");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [revealNext, allOpen, handleResult]);
 
   if (!current) return null;
 
@@ -152,8 +222,27 @@ export function RandomQuiz({ scores, onScore }: Props) {
           </div>
         </div>
 
+        {/* Section filter */}
+        <div class="flex flex-wrap gap-1.5 mt-4">
+          <button
+            class={`badge badge-sm cursor-pointer transition-colors ${selectedSection === "all" ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+            onClick={() => handleSectionChange("all")}
+          >
+            全て ({ALL_QUIZZES.length})
+          </button>
+          {SECTION_OPTIONS.map((s) => (
+            <button
+              key={s.id}
+              class={`badge badge-sm cursor-pointer transition-colors ${selectedSection === s.id ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+              onClick={() => handleSectionChange(s.id)}
+            >
+              {s.icon} {s.title} ({s.count})
+            </button>
+          ))}
+        </div>
+
         {/* Stats bar */}
-        <div class="flex items-center gap-4 mt-4">
+        <div class="flex items-center gap-4 mt-3">
           <div class="flex gap-3 text-xs">
             <span class="text-success font-bold">{correctCount} 正解</span>
             <span class="text-error font-bold">{wrongCount} 不正解</span>
@@ -232,17 +321,30 @@ export function RandomQuiz({ scores, onScore }: Props) {
                   onClick={() => handleResult("correct")}
                 >
                   わかった
+                  <kbd class="kbd kbd-xs ml-1 opacity-50 hidden sm:inline">
+                    →
+                  </kbd>
                 </button>
                 <button
                   class="btn btn-error btn-outline btn-sm flex-1"
                   onClick={() => handleResult("wrong")}
                 >
                   もう一度
+                  <kbd class="kbd kbd-xs ml-1 opacity-50 hidden sm:inline">
+                    ←
+                  </kbd>
                 </button>
               </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Keyboard hint */}
+      <div class="text-center text-xs opacity-25 hidden sm:block">
+        <kbd class="kbd kbd-xs">Space</kbd> 次のブランクを開く{" "}
+        <kbd class="kbd kbd-xs">→</kbd> わかった <kbd class="kbd kbd-xs">←</kbd>{" "}
+        もう一度
       </div>
 
       {/* Accuracy */}
