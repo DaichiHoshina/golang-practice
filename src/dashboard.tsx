@@ -6,6 +6,24 @@ interface Props {
   onNavigate: (id: string) => void;
 }
 
+function getGreeting(): { emoji: string; text: string } {
+  const h = new Date().getHours();
+  if (h < 6) return { emoji: "🌙", text: "夜更かし勉強、お疲れ様!" };
+  if (h < 10) return { emoji: "☀️", text: "おはよう! 朝の学習は最高!" };
+  if (h < 14) return { emoji: "🚀", text: "お昼もバリバリいこう!" };
+  if (h < 18) return { emoji: "☕", text: "午後もコーヒー片手に頑張ろう!" };
+  return { emoji: "🌆", text: "夜の集中タイム!" };
+}
+
+function getMilestoneMsg(pct: number): { emoji: string; msg: string } {
+  if (pct === 0) return { emoji: "🌱", msg: "最初の一歩を踏み出そう!" };
+  if (pct < 25) return { emoji: "🏃", msg: "いいスタート! その調子!" };
+  if (pct < 50) return { emoji: "⚡", msg: "4分の1クリア! 波に乗ってる!" };
+  if (pct < 75) return { emoji: "🔥", msg: "半分突破! すごい!" };
+  if (pct < 100) return { emoji: "🌟", msg: "もうすぐ制覇! ラストスパート!" };
+  return { emoji: "🏆", msg: "全トピック制覇! マスターだ!" };
+}
+
 export function Dashboard({ completed, notes, onNavigate }: Props) {
   const completedCount = Object.values(completed).filter(Boolean).length;
   const progressPct = Math.round((completedCount / TOTAL_TOPICS) * 100);
@@ -27,18 +45,25 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
     }),
   );
 
+  const greeting = getGreeting();
+  const milestone = getMilestoneMsg(progressPct);
+  const completedSections = sectionStats.filter(
+    (s) => s.done === s.total && s.total > 0,
+  ).length;
+
   return (
     <div class="space-y-6">
-      {/* Title */}
+      {/* Greeting + Title */}
       <div>
+        <div class="text-2xl mb-1">{greeting.emoji}</div>
         <h1 class="text-2xl font-bold">Go 実務学習ガイド</h1>
-        <p class="text-sm opacity-50 mt-1">
-          バックエンドエンジニア向け — 中級者の学び直し
-        </p>
+        <p class="text-sm opacity-60 mt-1">{greeting.text}</p>
       </div>
 
       {/* Overall Progress */}
-      <div class="card bg-base-200">
+      <div
+        class={`card bg-base-200 ${progressPct === 100 ? "milestone-card" : ""}`}
+      >
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">
             <span class="text-sm font-semibold">全体進捗</span>
@@ -51,7 +76,13 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
             value={progressPct}
             max={100}
           />
-          <p class="text-xs opacity-40 mt-2">{progressPct}% 完了</p>
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-base">{milestone.emoji}</span>
+            <span class="text-xs font-semibold text-primary/80">
+              {milestone.msg}
+            </span>
+            <span class="text-xs opacity-40 ml-auto">{progressPct}%</span>
+          </div>
         </div>
       </div>
 
@@ -94,15 +125,15 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
                   <span class="text-xs font-semibold">
                     {s.icon} {s.title}
                   </span>
-                  <span
-                    class={`text-xs ${
-                      s.done === s.total && s.total > 0
-                        ? "text-primary"
-                        : "opacity-40"
-                    }`}
-                  >
-                    {s.done}/{s.total}
-                  </span>
+                  {s.done === s.total && s.total > 0 ? (
+                    <span class="badge badge-success badge-xs gap-1">
+                      ✓ 制覇
+                    </span>
+                  ) : (
+                    <span class="text-xs opacity-40">
+                      {s.done}/{s.total}
+                    </span>
+                  )}
                 </div>
                 <progress
                   class="progress progress-primary progress-sm w-full h-1"
@@ -121,6 +152,12 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
         <div class="stat place-items-center">
           <div class="stat-value text-2xl text-primary">{completedCount}</div>
           <div class="stat-desc">完了トピック</div>
+        </div>
+        <div class="stat place-items-center">
+          <div class="stat-value text-2xl text-success">
+            {completedSections}
+          </div>
+          <div class="stat-desc">制覇セクション</div>
         </div>
         <div class="stat place-items-center">
           <div class="stat-value text-2xl">{notesCount}</div>

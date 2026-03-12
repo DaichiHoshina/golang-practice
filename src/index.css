@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "highlight.js/styles/github.css";
 @plugin "daisyui" {
-  themes: light --default
+  themes: cupcake --default
 }
 
 ::-webkit-scrollbar {
@@ -100,4 +100,50 @@
 }
 .popup-fade-in {
   animation: popup-fade-in 0.15s ease-out;
+}
+
+/* Celebration burst */
+@keyframes celebrate-pop {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+@keyframes celebrate-rise {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+}
+@keyframes streak-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+.celebrate-emoji {
+  position: absolute;
+  animation: celebrate-rise 0.8s ease-out forwards;
+  pointer-events: none;
+  font-size: 1.5rem;
+  z-index: 60;
+}
+.streak-badge {
+  animation: streak-pulse 0.4s ease-in-out;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(40px) rotate(360deg); opacity: 0; }
+}
+.confetti-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: confetti-fall 0.7s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Milestone card glow */
+@keyframes milestone-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 80 / 0); }
+  50% { box-shadow: 0 0 20px 4px oklch(0.7 0.15 80 / 0.3); }
+}
+.milestone-card {
+  animation: milestone-glow 2s ease-in-out infinite;
 }

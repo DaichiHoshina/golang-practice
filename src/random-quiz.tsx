@@ -63,6 +63,50 @@ interface Props {
   onScore: (key: string, result: Result) => void;
 }
 
+const CELEBRATE_EMOJIS = ["🎉", "✨", "🔥", "⭐", "💪", "🚀", "👏", "💯"];
+const CONFETTI_COLORS = [
+  "#f59e0b",
+  "#ef4444",
+  "#3b82f6",
+  "#10b981",
+  "#8b5cf6",
+  "#ec4899",
+];
+
+function CelebrationBurst() {
+  const emojis = Array.from({ length: 4 }, (_, i) => ({
+    emoji:
+      CELEBRATE_EMOJIS[Math.floor(Math.random() * CELEBRATE_EMOJIS.length)],
+    left: 20 + Math.random() * 60,
+    delay: i * 0.1,
+  }));
+  const dots = Array.from({ length: 8 }, (_, i) => ({
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    left: 10 + Math.random() * 80,
+    delay: Math.random() * 0.3,
+  }));
+  return (
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+      {emojis.map((e, i) => (
+        <span
+          key={`e${i}`}
+          class="celebrate-emoji"
+          style={`left:${e.left}%;top:60%;animation-delay:${e.delay}s`}
+        >
+          {e.emoji}
+        </span>
+      ))}
+      {dots.map((d, i) => (
+        <span
+          key={`d${i}`}
+          class="confetti-dot"
+          style={`left:${d.left}%;top:50%;background:${d.color};animation-delay:${d.delay}s`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function RandomQuiz({ scores, onScore }: Props) {
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [queue, setQueue] = useState<QuizWithMeta[]>(() =>
@@ -70,6 +114,8 @@ export function RandomQuiz({ scores, onScore }: Props) {
   );
   const [currentIdx, setCurrentIdx] = useState(0);
   const [openSet, setOpenSet] = useState<Set<number>>(new Set());
+  const [streak, setStreak] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const handleSectionChange = useCallback((sectionId: string) => {
     setSelectedSection(sectionId);
@@ -159,6 +205,13 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const handleResult = useCallback(
     (result: Result) => {
       onScore(scoreKey, result);
+      if (result === "correct") {
+        setStreak((s) => s + 1);
+        setShowCelebration(true);
+        setTimeout(() => setShowCelebration(false), 900);
+      } else {
+        setStreak(0);
+      }
       setOpenSet(new Set());
       setCurrentIdx((i) => {
         if (i + 1 >= queue.length) {
@@ -263,8 +316,18 @@ export function RandomQuiz({ scores, onScore }: Props) {
         </div>
       </div>
 
+      {/* Streak badge */}
+      {streak >= 2 && (
+        <div class="flex justify-center">
+          <span class="streak-badge badge badge-warning gap-1 text-sm font-bold px-4 py-3">
+            🔥 {streak}連続正解!
+          </span>
+        </div>
+      )}
+
       {/* Quiz Card */}
-      <div class="card bg-base-200 border border-base-300">
+      <div class="card bg-base-200 border border-base-300 relative overflow-hidden">
+        {showCelebration && <CelebrationBurst />}
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">
             <span class="badge badge-info badge-sm">{current.topicTitle}</span>
@@ -348,31 +411,55 @@ export function RandomQuiz({ scores, onScore }: Props) {
       </div>
 
       {/* Accuracy */}
-      {answered > 0 && (
-        <div class="card bg-base-200 border border-base-300">
-          <div class="card-body p-4">
-            <div class="text-xs font-bold opacity-50 mb-2">正答率</div>
-            <div class="flex items-center gap-3">
-              <div
-                class="radial-progress text-primary text-sm"
-                style={`--value:${Math.round((correctCount / answered) * 100)}; --size:3.5rem; --thickness:4px;`}
-              >
-                {Math.round((correctCount / answered) * 100)}%
-              </div>
-              <div class="text-xs opacity-60 leading-relaxed">
-                <p>
-                  {answered} 問回答 / 全 {total} 問
-                </p>
-                <p class="mt-0.5">
-                  {wrongCount > 0
-                    ? `${wrongCount} 問を優先的に再出題します`
-                    : "全問正解中!"}
-                </p>
+      {answered > 0 &&
+        (() => {
+          const pct = Math.round((correctCount / answered) * 100);
+          const milestone =
+            pct === 100
+              ? { icon: "🏆", msg: "パーフェクト! 完璧です!", glow: true }
+              : pct >= 80
+                ? { icon: "🌟", msg: "素晴らしい! この調子!", glow: false }
+                : pct >= 60
+                  ? { icon: "💪", msg: "いい感じ! もう少し!", glow: false }
+                  : pct >= 40
+                    ? { icon: "📚", msg: "着実に成長中!", glow: false }
+                    : {
+                        icon: "🌱",
+                        msg: "繰り返しが大事! 頑張ろう!",
+                        glow: false,
+                      };
+          return (
+            <div
+              class={`card bg-base-200 border border-base-300 ${milestone.glow ? "milestone-card" : ""}`}
+            >
+              <div class="card-body p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-lg">{milestone.icon}</span>
+                  <span class="text-xs font-bold opacity-50">正答率</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div
+                    class="radial-progress text-primary text-sm"
+                    style={`--value:${pct}; --size:3.5rem; --thickness:4px;`}
+                  >
+                    {pct}%
+                  </div>
+                  <div class="text-xs opacity-60 leading-relaxed">
+                    <p class="font-semibold text-primary/80">{milestone.msg}</p>
+                    <p class="mt-0.5">
+                      {answered} 問回答 / 全 {total} 問
+                    </p>
+                    <p class="mt-0.5">
+                      {wrongCount > 0
+                        ? `${wrongCount} 問を優先的に再出題します`
+                        : "全問正解中!"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }
