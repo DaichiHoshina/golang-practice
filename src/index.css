@@ -11,11 +11,12 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.3 0 0);
+  /* lighter gray for light theme */
+  background: oklch(0.72 0 0);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.4 0 0);
+  background: oklch(0.58 0 0);
 }
 
 .code-block {
@@ -50,37 +51,39 @@
 }
 
 /* Text fill-in-blank (inline in text) */
+/* Uses cupcake primary pink hue (348) to blend with the theme */
 .text-blank-hidden {
   display: inline-block;
   min-width: 3rem;
-  background: oklch(0.88 0.04 250 / 0.7);
+  background: oklch(0.93 0.05 348 / 0.55);
   border: none;
   border-radius: 0.25rem;
   padding: 0.1rem 0.6rem;
   margin: 0 0.15rem;
-  color: oklch(0.4 0.12 250);
+  color: oklch(0.42 0.12 348);
   font-size: inherit;
   font-family: inherit;
   font-weight: 600;
   cursor: pointer;
-  border-bottom: 2px dashed oklch(0.5 0.12 250 / 0.6);
+  border-bottom: 2px dashed oklch(0.55 0.10 348 / 0.55);
   transition: all 0.2s;
   vertical-align: baseline;
 }
 .text-blank-hidden:hover {
-  background: oklch(0.82 0.06 250 / 0.8);
-  color: oklch(0.3 0.14 250);
+  background: oklch(0.87 0.08 348 / 0.65);
+  color: oklch(0.32 0.13 348);
 }
 
+/* Revealed: use blue (info/secondary) to signal "answer shown" */
 .text-blank-revealed {
   display: inline-block;
-  background: oklch(0.85 0.08 250 / 0.5);
+  background: oklch(0.90 0.05 215 / 0.45);
   border-radius: 0.25rem;
   padding: 0.1rem 0.5rem;
   margin: 0 0.15rem;
-  color: oklch(0.3 0.18 250);
+  color: oklch(0.36 0.12 225);
   font-weight: 700;
-  border-bottom: 2px solid oklch(0.45 0.18 250 / 0.6);
+  border-bottom: 2px solid oklch(0.50 0.13 220 / 0.55);
   animation: blank-reveal 0.3s ease-out;
   vertical-align: baseline;
 }
@@ -134,10 +137,10 @@
   pointer-events: none;
 }
 
-/* Milestone card glow */
+/* Milestone card glow — matches cupcake primary pink */
 @keyframes milestone-glow {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.15 80 / 0); }
-  50% { box-shadow: 0 0 20px 4px oklch(0.7 0.15 80 / 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.76 0.12 348 / 0); }
+  50% { box-shadow: 0 0 20px 4px oklch(0.76 0.12 348 / 0.35); }
 }
 .milestone-card {
   animation: milestone-glow 2s ease-in-out infinite;

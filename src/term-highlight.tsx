@@ -69,8 +69,8 @@ function TermPopup({
       <div
         class={
           isMobile
-            ? "fixed bottom-0 left-0 right-0 z-50 bg-base-300 border-t border-base-100 rounded-t-2xl px-5 py-4 shadow-2xl popup-slide-up"
-            : "z-50 bg-base-300 border border-base-100 rounded-xl shadow-xl px-4 py-3 popup-fade-in"
+            ? "fixed bottom-0 left-0 right-0 z-50 bg-base-200 border-t border-base-300 rounded-t-2xl px-5 py-4 shadow-2xl popup-slide-up"
+            : "z-50 bg-base-200 border border-base-300 rounded-xl shadow-xl px-4 py-3 popup-fade-in"
         }
         style={style}
         onClick={(e: Event) => e.stopPropagation()}
