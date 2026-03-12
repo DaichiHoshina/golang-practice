@@ -46,3 +46,17 @@
 .code-bad {
   border-left: 3px solid oklch(0.65 0.2 25);
 }
+
+.tooltip {
+  --tooltip-text-color: oklch(0.9 0 0);
+  --tooltip-color: oklch(0.2 0.01 260);
+}
+.tooltip::before {
+  max-width: 20rem;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: normal;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  z-index: 50;
+}

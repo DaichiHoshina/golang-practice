@@ -1,6 +1,7 @@
 import { useState, useMemo } from "hono/jsx/dom";
 import type { Topic, Section } from "./types";
 import { TOPICS, TAG_BADGE } from "./data";
+import { HighlightedText } from "./term-highlight";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
 
@@ -50,7 +51,9 @@ function InterviewBox({ points }: { points: string[] }) {
         {points.map((p, i) => (
           <li key={i} class="text-xs opacity-80 flex gap-2 leading-relaxed">
             <span class="text-secondary shrink-0 mt-0.5">→</span>
-            <span>{p}</span>
+            <span>
+              <HighlightedText text={p} />
+            </span>
           </li>
         ))}
       </ul>
@@ -73,7 +76,7 @@ function TradeoffBox({
         {tradeoffs.map((t, i) => (
           <p key={i} class="text-xs opacity-80 leading-relaxed">
             <span class="font-semibold text-warning">{t.title}: </span>
-            {t.desc}
+            <HighlightedText text={t.desc} />
           </p>
         ))}
       </div>
@@ -136,7 +139,7 @@ function TopicCard({
               <span class={`badge badge-sm ${badgeCls}`}>{topic.tag}</span>
             </div>
             <p class="text-xs opacity-50 mt-1.5 leading-relaxed">
-              {topic.summary}
+              <HighlightedText text={topic.summary} />
             </p>
           </div>
           <span class="text-xs opacity-30 shrink-0 mt-1">
@@ -153,7 +156,9 @@ function TopicCard({
             <p class="text-xs font-semibold opacity-50 mb-1">
               なぜそうするのか
             </p>
-            <p class="text-xs opacity-80 leading-relaxed">{topic.why}</p>
+            <p class="text-xs opacity-80 leading-relaxed">
+              <HighlightedText text={topic.why} />
+            </p>
           </div>
 
           <TradeoffBox tradeoffs={topic.tradeoffs} />
