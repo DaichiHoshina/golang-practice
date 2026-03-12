@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "hono/jsx/dom";
 import { SECTIONS, TOTAL_TOPICS } from "./data";
 import { Dashboard } from "./dashboard";
 import { SectionView } from "./section-view";
+import { RandomQuiz } from "./random-quiz";
+import type { QuizScores } from "./random-quiz";
 
 function useLocalStorage<T>(
   key: string,
@@ -25,7 +27,7 @@ function useLocalStorage<T>(
 
 export function App() {
   const [currentSection, setCurrentSection] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [completed, setCompleted] = useLocalStorage<Record<string, boolean>>(
     "go-study-completed",
     {},
@@ -34,6 +36,15 @@ export function App() {
     "go-study-notes",
     {},
   );
+  const [quizScores, setQuizScores] = useLocalStorage<QuizScores>(
+    "go-study-quiz-scores",
+    {},
+  );
+
+  // Desktop: default sidebar open
+  useEffect(() => {
+    if (window.innerWidth >= 768) setSidebarOpen(true);
+  }, []);
 
   const toggleComplete = useCallback((id: string) => {
     setCompleted((prev: Record<string, boolean>) => ({
@@ -44,6 +55,19 @@ export function App() {
 
   const updateNote = useCallback((id: string, val: string) => {
     setNotes((prev: Record<string, string>) => ({ ...prev, [id]: val }));
+  }, []);
+
+  const updateQuizScore = useCallback(
+    (key: string, result: "correct" | "wrong") => {
+      setQuizScores((prev: QuizScores) => ({ ...prev, [key]: result }));
+    },
+    [],
+  );
+
+  const navigate = useCallback((id: string) => {
+    setCurrentSection(id);
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth < 768) setSidebarOpen(false);
   }, []);
 
   const completedCount = Object.values(completed).filter(Boolean).length;
@@ -85,12 +109,49 @@ export function App() {
       </div>
 
       {/* ── Body ── */}
-      <div class="flex flex-1 overflow-hidden">
+      <div class="flex flex-1 overflow-hidden relative">
+        {/* Mobile backdrop */}
+        {sidebarOpen && (
+          <div
+            class="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         {sidebarOpen && (
-          <aside class="w-52 shrink-0 bg-base-200 border-r border-base-300 overflow-y-auto flex flex-col">
+          <aside class="w-52 shrink-0 bg-base-200 border-r border-base-300 overflow-y-auto flex flex-col fixed md:static inset-y-0 left-0 z-40 mt-12 md:mt-0">
             <ul class="menu menu-sm p-2 flex-1">
-              {SECTIONS.map((s) => {
+              {/* Dashboard */}
+              <li>
+                <button
+                  class={`flex justify-between w-full ${currentSection === "dashboard" ? "active" : ""}`}
+                  onClick={() => navigate("dashboard")}
+                >
+                  <span class="flex items-center gap-2">
+                    <span class="opacity-50 w-4 text-center text-xs">~</span>
+                    <span>Dashboard</span>
+                  </span>
+                </button>
+              </li>
+              {/* Random Quiz */}
+              <li>
+                <button
+                  class={`flex justify-between w-full ${currentSection === "random-quiz" ? "active" : ""}`}
+                  onClick={() => navigate("random-quiz")}
+                >
+                  <span class="flex items-center gap-2">
+                    <span class="opacity-50 w-4 text-center text-xs">?</span>
+                    <span>ランダム出題</span>
+                  </span>
+                </button>
+              </li>
+              {/* Divider */}
+              <li class="menu-title mt-1 mb-0">
+                <span class="text-[0.6rem] opacity-30">セクション</span>
+              </li>
+              {/* Section items */}
+              {SECTIONS.filter((s) => s.id !== "dashboard").map((s) => {
                 const done = s.topicIds.filter((id) => completed[id]).length;
                 const total = s.topicIds.length;
                 const isActive = currentSection === s.id;
@@ -98,7 +159,7 @@ export function App() {
                   <li key={s.id}>
                     <button
                       class={`flex justify-between w-full ${isActive ? "active" : ""}`}
-                      onClick={() => setCurrentSection(s.id)}
+                      onClick={() => navigate(s.id)}
                     >
                       <span class="flex items-center gap-2">
                         <span class="opacity-50 w-4 text-center text-xs">
@@ -128,13 +189,15 @@ export function App() {
 
         {/* Main Content */}
         <main class="flex-1 overflow-y-auto">
-          <div class="max-w-3xl mx-auto px-6 py-8">
+          <div class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             {currentSection === "dashboard" ? (
               <Dashboard
                 completed={completed}
                 notes={notes}
-                onNavigate={setCurrentSection}
+                onNavigate={navigate}
               />
+            ) : currentSection === "random-quiz" ? (
+              <RandomQuiz scores={quizScores} onScore={updateQuizScore} />
             ) : activeSection ? (
               <SectionView
                 section={activeSection}
