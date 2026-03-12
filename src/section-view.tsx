@@ -210,7 +210,7 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
           Q{index + 1}. 穴埋め問題
         </span>
         {!allOpen && (
-          <span class="text-[0.65rem] opacity-60">
+          <span class="text-[0.65rem] opacity-80">
             ____ をクリックして答えを開こう
           </span>
         )}
