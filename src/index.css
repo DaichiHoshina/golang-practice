@@ -73,6 +73,10 @@
   background: oklch(0.87 0.08 348 / 0.65);
   color: oklch(0.32 0.13 348);
 }
+.text-blank-hidden:focus-visible {
+  outline: 2px solid oklch(0.55 0.10 348);
+  outline-offset: 2px;
+}
 
 /* Revealed: use blue (info/secondary) to signal "answer shown" */
 .text-blank-revealed {

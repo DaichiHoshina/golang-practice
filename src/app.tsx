@@ -66,6 +66,8 @@ export function App() {
 
   const navigate = useCallback((id: string) => {
     setCurrentSection(id);
+    // Scroll main content to top on navigation
+    document.querySelector("main")?.scrollTo(0, 0);
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) setSidebarOpen(false);
   }, []);
@@ -87,7 +89,7 @@ export function App() {
             ☰
           </button>
           <span class="font-bold text-primary tracking-widest text-sm">GO</span>
-          <span class="text-xs opacity-30 hidden sm:inline">
+          <span class="text-xs opacity-50 hidden sm:inline">
             実務学習ガイド
           </span>
         </div>
@@ -98,11 +100,11 @@ export function App() {
               value={progressPct}
               max={100}
             />
-            <span class="text-xs opacity-40">{progressPct}%</span>
+            <span class="text-xs opacity-60">{progressPct}%</span>
           </div>
         </div>
         <div class="navbar-end">
-          <span class="text-xs opacity-30">
+          <span class="text-xs opacity-55">
             {completedCount}/{TOTAL_TOPICS}
           </span>
         </div>
@@ -182,7 +184,7 @@ export function App() {
               })}
             </ul>
             <div class="p-3 border-t border-base-300 text-center">
-              <span class="text-xs opacity-20">Backend Engineer Ed.</span>
+              <span class="text-xs opacity-40">Backend Engineer Ed.</span>
             </div>
           </aside>
         )}

@@ -82,7 +82,7 @@ function TermPopup({
         <div class="flex items-start justify-between gap-2 mb-1.5">
           <span class="text-primary font-bold text-sm">{info.term}</span>
           <button
-            class="text-xs opacity-40 hover:opacity-80 shrink-0 leading-none"
+            class="text-xs opacity-40 hover:opacity-80 shrink-0 p-2 -m-1 rounded"
             onClick={(e: Event) => {
               e.stopPropagation();
               onClose();
@@ -137,7 +137,7 @@ export function HighlightedText({ text }: { text: string }) {
           return (
             <button
               key={i}
-              class="border-b border-dotted border-primary/40 text-primary/90 font-medium cursor-pointer hover:border-primary/70 transition-colors"
+              class="border-b border-dotted border-primary/40 text-primary/90 font-medium cursor-pointer hover:border-primary/70 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary/70 rounded-sm"
               onClick={(e: MouseEvent) => handleTermClick(e, part, desc)}
               aria-label={`${part}の説明を見る`}
             >

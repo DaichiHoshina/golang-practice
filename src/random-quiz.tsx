@@ -290,7 +290,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
           <span class="text-3xl leading-none mt-1">?</span>
           <div>
             <h1 class="text-xl font-bold">ランダム出題</h1>
-            <p class="text-sm opacity-40 mt-0.5">
+            <p class="text-sm opacity-60 mt-0.5">
               穴埋め問題をランダムに出題。間違えた問題は優先的に再出題。
             </p>
           </div>
@@ -299,7 +299,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
         {/* Section filter */}
         <div class="flex flex-wrap gap-1.5 mt-4">
           <button
-            class={`badge badge-sm cursor-pointer transition-colors ${selectedSection === "all" ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+            class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === "all" ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
             onClick={() => handleSectionChange("all")}
           >
             全て ({ALL_QUIZZES.length})
@@ -307,7 +307,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
           {SECTION_OPTIONS.map((s) => (
             <button
               key={s.id}
-              class={`badge badge-sm cursor-pointer transition-colors ${selectedSection === s.id ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+              class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === s.id ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
               onClick={() => handleSectionChange(s.id)}
             >
               {s.icon} {s.title} ({s.count})
@@ -320,7 +320,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
           <div class="flex gap-3 text-xs">
             <span class="text-success font-bold">{correctCount} 正解</span>
             <span class="text-error font-bold">{wrongCount} 不正解</span>
-            <span class="opacity-40">{total - answered} 未回答</span>
+            <span class="opacity-60">{total - answered} 未回答</span>
           </div>
           <progress
             class="progress progress-info flex-1 h-1.5"
@@ -352,7 +352,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">
             <span class="badge badge-info badge-sm">{current.topicTitle}</span>
-            <span class="text-xs opacity-30">
+            <span class="text-xs opacity-55">
               {currentIdx + 1} / {queue.length}
             </span>
           </div>

@@ -48,8 +48,16 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
   return (
     <li class="text-xs opacity-80 leading-relaxed">
       <div
-        class={`flex gap-2 ${hasDetail ? "cursor-pointer hover:opacity-100 transition-opacity" : ""}`}
+        class={`flex gap-2 ${hasDetail ? "cursor-pointer hover:opacity-100 transition-opacity rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary/60 outline-none" : ""}`}
         onClick={() => hasDetail && setOpen((o: boolean) => !o)}
+        role={hasDetail ? "button" : undefined}
+        tabIndex={hasDetail ? 0 : undefined}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (hasDetail && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            setOpen((o: boolean) => !o);
+          }
+        }}
       >
         <span class="text-secondary shrink-0 mt-0.5">→</span>
         <span class="flex-1">
@@ -250,11 +258,15 @@ function TradeoffBox({
   if (!tradeoffs.length) return null;
   return (
     <div class="mt-4 bg-warning/5 border border-warning/20 rounded-box p-4">
-      <div class="text-xs font-bold text-warning mb-2.5">⇄ トレードオフ</div>
+      <div class="text-xs font-bold mb-2.5" style="color: oklch(0.52 0.14 80)">
+        ⇄ トレードオフ
+      </div>
       <div class="space-y-2">
         {tradeoffs.map((t, i) => (
           <p key={i} class="text-xs opacity-80 leading-relaxed">
-            <span class="font-semibold text-warning">{t.title}: </span>
+            <span class="font-semibold" style="color: oklch(0.52 0.14 80)">
+              {t.title}:{" "}
+            </span>
             <HighlightedText text={t.desc} />
           </p>
         ))}
@@ -330,8 +342,17 @@ function TopicCard({
     >
       {/* Header */}
       <div
-        class="card-body p-4 cursor-pointer"
+        class="card-body p-4 cursor-pointer rounded-t-box focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/60 outline-none"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
         onClick={() => setExpanded((e: boolean) => !e)}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((prev: boolean) => !prev);
+          }
+        }}
       >
         <div class="flex items-start gap-3">
           <label class="sr-only" for={`check-${topic.id}`}>
@@ -358,11 +379,11 @@ function TopicCard({
               </h3>
               <span class={`badge badge-sm ${badgeCls}`}>{topic.tag}</span>
             </div>
-            <p class="text-xs opacity-50 mt-1.5 leading-relaxed">
+            <p class="text-xs opacity-65 mt-1.5 leading-relaxed">
               <HighlightedText text={topic.summary} />
             </p>
           </div>
-          <span class="text-xs opacity-30 shrink-0 mt-1">
+          <span class="text-xs opacity-50 shrink-0 mt-1">
             {expanded ? "▲" : "▼"}
           </span>
         </div>
@@ -373,7 +394,7 @@ function TopicCard({
         <div class="card-body pt-0 border-t border-base-300 space-y-4">
           {/* Why */}
           <div>
-            <p class="text-xs font-semibold opacity-50 mb-1">
+            <p class="text-xs font-semibold opacity-65 mb-1">
               なぜそうするのか
             </p>
             <p class="text-xs opacity-80 leading-relaxed">
@@ -403,8 +424,14 @@ function TopicCard({
 
           {/* Notes */}
           <div>
-            <p class="text-xs font-semibold opacity-50 mb-1.5">学習メモ</p>
+            <label
+              for={`note-${topic.id}`}
+              class="text-xs font-semibold opacity-65 mb-1.5 block"
+            >
+              学習メモ
+            </label>
             <textarea
+              id={`note-${topic.id}`}
               class="textarea textarea-bordered w-full text-xs"
               rows={3}
               placeholder="気づき・疑問・実務での経験をメモ..."
@@ -451,7 +478,7 @@ export function SectionView({
           <span class="text-3xl leading-none mt-1">{section.icon}</span>
           <div>
             <h1 class="text-xl font-bold">{section.title}</h1>
-            <p class="text-sm opacity-40 mt-0.5">{section.description}</p>
+            <p class="text-sm opacity-60 mt-0.5">{section.description}</p>
           </div>
         </div>
         <div class="flex items-center gap-3 mt-4">
@@ -460,7 +487,7 @@ export function SectionView({
             value={topics.length > 0 ? (doneCount / topics.length) * 100 : 0}
             max={100}
           />
-          <span class="text-xs opacity-40 shrink-0">
+          <span class="text-xs opacity-60 shrink-0">
             {doneCount}/{topics.length} 完了
           </span>
         </div>
