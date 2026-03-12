@@ -94,6 +94,19 @@ es := []int{}       // empty slice: json → []`,
         explanation:
           "make([]T, 0, n) で長さ0・容量nの slice を作る。append しても容量内なら再割り当てが発生しないためパフォーマンスが良い。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "nil slice と empty slice の違いは何か？JSON marshal するとどう差が出るか？",
+        blanks: ["nil slice → json: null","empty slice → json: []"],
+        explanation: "var s []int は nil slice（json.Marshal で null）。s := []int{} や make([]int, 0) は empty slice（json.Marshal で []）。len(s) はどちらも 0 で同じだが、json 出力の違いに注意。API レスポンスでは意図的に区別する。",
+      },
+      {
+        type: "concept" as const,
+        code: "append(s, v) が新しい配列を確保するのはどんな条件か？その瞬間に何が起きるか？",
+        blanks: ["len == cap のとき","新しいメモリを確保","古い参照との共有が切れる"],
+        explanation: "slice の len が cap に達したとき、append は新しい backing array を確保してデータをコピーし、新しい slice header を返す。この瞬間、古い slice と新しい slice は別の配列を参照する。goroutine 間で slice を共有していると、append 後に古い参照が残るため data race が発生しうる。",
+      },
     ],
   },
 
@@ -445,6 +458,19 @@ if errors.As(err, &nfe) {
         explanation:
           "sentinel error は errors.New でパッケージレベルに定義。判定は errors.Is(err, ErrNotFound) で行う。ラップされていても正しく判定される。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "errors.Is と errors.As の違いは何か？それぞれどんな場面で使うか？",
+        blanks: ["errors.Is = sentinel の値比較","errors.As = カスタム型の取得"],
+        explanation: "errors.Is(err, target) はラップされたエラーチェーンを辿って target と同値か判定。errors.As(err, &target) は型アサーションのラップ版で、チェーンから特定の型を取り出す。sentinel error（var ErrNotFound = errors.New(...)）なら Is、フィールドを持つカスタムエラー型なら As を使う。",
+      },
+      {
+        type: "concept" as const,
+        code: "fmt.Errorf の %v と %w でラップした場合の決定的な違いは何か？",
+        blanks: ["%v = Unwrap できない","%w = Unwrap 可能（errors.Is/As が効く）"],
+        explanation: "%w でラップすると errors.Unwrap が機能し、errors.Is/As でチェーンを辿れる。%v は単なる文字列フォーマットで、ラップされたエラーは取り出せない。コンテキストを付加しつつ元のエラー判定も残したいなら %w を使う。",
+      },
     ],
   },
 
@@ -543,6 +569,19 @@ case <-ctx.Done():
         explanation:
           "WithTimeout で期限付き context を作り、defer cancel() で必ずリソースを解放する。NewRequestWithContext に ctx を渡すことでタイムアウト時にリクエストが自動キャンセルされる。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "context を struct のフィールドに保存してはいけない理由は何か？",
+        blanks: ["リクエストスコープの短命オブジェクト","関数の第一引数として渡す"],
+        explanation: "context はリクエスト単位の短命オブジェクト。struct に保存するとオブジェクトのライフタイムと乖離し、キャンセルシグナルが正しく伝播しなくなる。Go の慣習は『context は関数の第一引数として渡す』。context.Background() を struct に保存するのはパターンとしてNG。",
+      },
+      {
+        type: "concept" as const,
+        code: "context.WithValue を使う際の注意点は何か？どんな情報を入れるべきか？",
+        blanks: ["key は非公開型を使う","リクエストスコープの横断的情報のみ"],
+        explanation: "key に string などの公開型を使うと別パッケージと衝突する。非公開の独自型（type ctxKey struct{}）を key に使う。値はリクエスト ID、トレース ID、認証情報など横断的な情報のみ。ビジネスロジックのデータを context に入れると関数シグネチャが不透明になる。",
+      },
     ],
   },
 
@@ -632,6 +671,19 @@ var _ UserFinder = (*UserRepo)(nil)
         blanks: ["interface", "*UserRepo", "&UserRepo{db: db}"],
         explanation:
           '"Accept interfaces, return structs"。interface は使う側が定義し、関数は具体型を返す。こうすることで依存が最小化され、テスト時にモックを差し替えやすくなる。',
+      },
+    
+      {
+        type: "concept" as const,
+        code: "Go で interface を実装側ではなく利用側（消費者側）で定義すべき理由は何か？",
+        blanks: ["最小依存","必要なメソッドのみ","後付けで定義可能"],
+        explanation: "実装側が大きな interface を定義すると、利用側は使わないメソッドへも依存する。消費者側定義では必要なメソッドのみを含む最小の interface を定義できる。Go の暗黙的実装により、後から interface を定義しても既存コードを変更しなくて済む（Accept interfaces, return structs）。",
+      },
+      {
+        type: "concept" as const,
+        code: "interface 変数が nil かどうかを判定するときのトラップは何か？",
+        blanks: ["interface は (型, 値) のペア","型情報があると nil でも != nil になる"],
+        explanation: "interface の内部は (type, value) の2フィールド。var p *MyError = nil を interface error に代入すると、型情報が入っているため err != nil が true になる。この現象を避けるには具体型変数を経由せず、interface 型で直接 nil を返す。",
       },
     ],
   },
@@ -834,6 +886,19 @@ func generate(ctx context.Context, nums ...int) <-chan int {
         explanation:
           "select で jobs channel からの受信と ctx.Done() を同時に待つ。context がキャンセルされると goroutine が安全に終了する。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "goroutine リークとはどんな状態か？代表的な発生原因を2つ挙げよ",
+        blanks: ["終了しない goroutine がリソースを消費し続ける","channel 未 close","context キャンセル未伝播"],
+        explanation: "goroutine が終了せずにスタックやヒープを消費し続ける状態。原因1: channel の送受信でブロックしたまま close されない。原因2: context のキャンセルシグナルを監視していない（select で ctx.Done() を受け取っていない）。runtime.NumGoroutine() や pprof の goroutine プロファイルで検出。",
+      },
+      {
+        type: "concept" as const,
+        code: "buffered channel と unbuffered channel の使い分けは？それぞれの意味的な違いは？",
+        blanks: ["unbuffered = 同期通信（ランデブー）","buffered = 非同期、キューとして機能"],
+        explanation: "unbuffered channel (make(chan T)) は送信と受信が同時に成立しなければブロックする（ランデブー）。goroutine 間の同期に使う。buffered channel (make(chan T, n)) はバッファが満杯になるまで非同期に送信できる。キュー、セマフォ、スループット向上に使う。",
+      },
     ],
   },
 
@@ -938,6 +1003,13 @@ return g.Wait()`,
         blanks: ["errgroup", "WithContext", "SetLimit", "Go", "Wait"],
         explanation:
           "errgroup.WithContext で context 連動のグループを作成。SetLimit で並列度を制限し、Go でタスクを追加、Wait で全完了を待つ。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "goroutine を無制限に起動した場合に起こる問題点を挙げよ",
+        blanks: ["メモリ枯渇","スケジューリング overhead","外部 API への過負荷"],
+        explanation: "goroutine は初期スタック 2KB だが成長する。10万 goroutine でギガバイト単位になりうる。スケジューラの context switch コストも増加。外部 API に向けた goroutine なら rate limit 超過やコネクション枯渇が起きる。Worker Pool パターンで上限を固定し制御する。",
       },
     ],
   },
@@ -1091,6 +1163,13 @@ func BenchmarkCompare(b *testing.B) {
         explanation:
           "ベンチマーク関数は Benchmark で始まり、*testing.B を受け取る。b.N はテストランナーが自動調整する繰り返し回数。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "Go のベンチマークで b.ResetTimer() と b.ReportAllocs() はそれぞれ何のために使うか？",
+        blanks: ["b.ResetTimer = セットアップ時間を除外","b.ReportAllocs = アロケーション数を表示"],
+        explanation: "b.ResetTimer() はベンチマーク関数内のセットアップコード（DB接続、データ準備等）の時間をタイマーから除外する。b.ReportAllocs() はヒープアロケーション数とバイト数を -benchmem 相当で出力。ゼロアロケーション最適化の確認に使う。",
+      },
     ],
   },
 
@@ -1162,6 +1241,13 @@ go http.ListenAndServe(":6060", nil)
         blanks: ["_", ":6060", "profile"],
         explanation:
           "net/http/pprof を blank import すると /debug/pprof/* エンドポイントが自動登録される。profile は CPU、heap はメモリプロファイルを取得。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "pprof の CPU プロファイルとヒーププロファイルはそれぞれ何を調べるためのものか？",
+        blanks: ["CPU = 処理時間のホットパス","ヒープ = メモリ割り当てと GC 負荷"],
+        explanation: "CPU プロファイルはどの関数がCPU時間を消費しているかを特定（ホットパスの最適化）。ヒーププロファイルはどこでメモリを確保しているか（GC 負荷の原因）を特定。goroutine プロファイルはデッドロックやリークの調査に使う。go tool pprof でフレームグラフを確認。",
       },
     ],
   },
@@ -1328,6 +1414,13 @@ tests := []struct {
         explanation:
           "t.Run でサブテストを作り名前をつける。-run フラグで特定ケースだけ実行可能。wantErr パターンでエラー有無を検証する。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "table-driven test で t.Run を使ってサブテストにする利点は何か？",
+        blanks: ["失敗したケースの特定が容易","並行実行 (t.Parallel())","特定ケースだけ再実行可能"],
+        explanation: "t.Run('case_name', func) でサブテストにすると、失敗時に 'TestXxx/case_name' と表示され問題のケースが即座に特定できる。go test -run TestXxx/specific_case で特定ケースのみ実行も可能。t.Parallel() でサブテストを並行実行しテスト時間を短縮できる。",
+      },
     ],
   },
 
@@ -1401,6 +1494,13 @@ func (realClock) Now() time.Time { return time.Now() }`,
         explanation:
           "time.Now() を interface で抽象化すると、テストで固定時刻を注入できる。本番は realClock、テストは mockClock を使う。DI の典型例。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "Go でモックを作る2つのアプローチとそれぞれの使い分けは？",
+        blanks: ["手書きモック = シンプルな interface","mockgen = 多数のメソッド/複雑な振る舞い"],
+        explanation: "手書きモックは interface を実装した struct を手動で書く。メソッドが少ない interface には最もシンプル。mockgen（gomock）は interface から mock を自動生成し、メソッドの呼び出し回数・引数の検証（アサーション）ができる。10以上のメソッドや複数のモックが必要なら mockgen が効率的。",
+      },
     ],
   },
 
@@ -1461,6 +1561,13 @@ func writeFile(path string, data []byte) (err error) {
         blanks: ["err", "err", "%w", "_"],
         explanation:
           "エラーを _ で捨てると障害時の原因特定が困難になる。必ず err を受け取って処理する。意図的に無視する場合は _ = にコメントで理由を明示する。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "エラーを無視する _ の代わりにすべきことは何か？どんな場合でもエラーチェックは必要か？",
+        blanks: ["基本は常にチェック","無視する場合は // intentionally ignored","defer の Close は特殊"],
+        explanation: "エラーを無視したい場合は必ず理由をコメントで記述する（// intentionally ignored: read-only, no state change）。defer f.Close() のエラーは書き込み後でないなら無視が許容されることもあるが、書き込んでいるなら Close のエラーを確認すべき。golangci-lint の errcheck で検出できる。",
       },
     ],
   },
@@ -1598,6 +1705,13 @@ func safeHandler(next http.Handler) http.Handler {
         explanation:
           "recover は defer 内でのみ有効。HTTP ミドルウェアでリクエスト単位の panic を catch し、プロセス全体のクラッシュを防ぐ。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "Go で panic を使っていい場面と使ってはいけない場面を説明せよ",
+        blanks: ["良い = 初期化失敗・プログラム継続不可能","NG = 通常のエラー処理"],
+        explanation: "panic が許容されるのは: ①プログラムの初期化で回復不能な状態（設定ファイルのパースエラー等）、②テストコードの must 関数。通常のエラー（入力値エラー、DB エラー、ネットワークエラー）は error として返す。library では絶対に panic しない（呼び出し元がリカバリできないため）。",
+      },
     ],
   },
 
@@ -1647,6 +1761,13 @@ func safeHandler(next http.Handler) http.Handler {
         blanks: ["G", "M", "P", "GOMAXPROCS"],
         explanation:
           "G = goroutine, M = machine (OS thread), P = processor (スケジューリングコンテキスト)。GOMAXPROCS で同時実行可能な P の数を設定する。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "面接で『goroutine と OS スレッドの違い』を問われたら何を答えるか？",
+        blanks: ["スタックサイズ（2KB vs MB）","M:N スケジューリング","起動コスト極低"],
+        explanation: "①スタックサイズ: goroutine は初期 2KB で動的成長（OS スレッドは 1〜8MB 固定）。②スケジューリング: Go ランタイムが M:N スケジューリングで goroutine を OS スレッドに多重化（OS のプリエンプションに依存しない）。③起動コスト: goroutine の起動は数マイクロ秒、OS スレッドはミリ秒単位。④通信: channel で安全にデータ受け渡し。",
       },
     ],
   },
@@ -1716,6 +1837,13 @@ for range requests {
         blanks: ["GOGC", "GOMEMLIMIT", "gctrace"],
         explanation:
           "GOGC=100 は live heap が2倍になったら GC。GOMEMLIMIT でコンテナのメモリ上限に合わせて OOM 防止。gctrace で GC の実行状況を確認。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "面接で『Go の GC はどのように動作するか』を問われたら何を答えるか？",
+        blanks: ["三色マーク＆スイープ","並行実行","STW は最小化"],
+        explanation: "Go は並行三色マーク＆スイープ GC を採用。白（未訪問）・灰色（訪問中）・黒（訪問済み）で到達可能性を判定。GC の大部分はアプリケーションと並行実行し STW（Stop The World）は数百マイクロ秒以下に抑える。Go 1.14 以降、プリエンプティブスケジューラで GC ループが詰まるバグも解消。",
       },
     ],
   },
@@ -2363,6 +2491,13 @@ wg.Wait()`,
         explanation:
           "sync.Once の Do() は最初の呼び出しでのみ関数を実行する。複数 goroutine から同時に呼ばれても安全で、1回だけ初期化が実行される。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "sync.Mutex と sync.RWMutex をどう使い分けるか？sync.Map が有効な場面は？",
+        blanks: ["read 多い → RWMutex","write 多い → Mutex","sync.Map = key 安定 + read heavy"],
+        explanation: "RWMutex は読み取り並行を許可し read-heavy（80%以上）で高スループット。write-heavy なら通常 Mutex がシンプルで overhead 小。sync.Map は key セットが安定していて read が圧倒的多数のキャッシュに適する。通常の map + RWMutex の方がパフォーマンスが良いケースも多いので benchmark で比較。",
+      },
     ],
   },
 
@@ -2444,6 +2579,13 @@ for _, item := range items {
         blanks: ["NewLimiter", "Wait"],
         explanation:
           "rate.NewLimiter(10, 20) で秒間10リクエスト、バースト20のリミッターを作成。Wait(ctx) でトークンを取得し、なければブロック。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "トークンバケットアルゴリズムとは何か？バースト制御が重要な理由は？",
+        blanks: ["一定レートでトークンを補充","バケット上限 = バースト量","瞬間的な集中を許容"],
+        explanation: "トークンバケットは一定レートでトークンを生成し、リクエストはトークンを消費する。バケットに蓄積できる上限がバーストサイズ。瞬間的なアクセス集中を許容しつつ長期的なレートを制御できる。golang.org/x/time/rate.NewLimiter(rate, burst) で実装。",
       },
     ],
   },
@@ -3057,6 +3199,13 @@ srv := NewServer("localhost",
         explanation:
           "Option は func(*Server) の型エイリアス。NewServer で可変長引数として受け取り、ループで適用する。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "Functional Options パターンが Config struct より優れる点を3つ挙げよ",
+        blanks: ["後方互換性","デフォルト値の明示的設定","バリデーション内蔵可能"],
+        explanation: "①後方互換性: 新しいオプションを追加しても既存の呼び出しコードが壊れない。②デフォルト値: コンストラクタ内で安全なデフォルトを設定し、Option で上書きする。③バリデーション: 各 Option 関数内でバリデーションを行える。Config struct は JSON/YAML からの読み込みには適しているが、Functional Options はプログラマティックな API に向く。",
+      },
     ],
   },
 
@@ -3141,6 +3290,13 @@ func TestGetUser(t *testing.T) {
         blanks: ["interface", "New", "repo"],
         explanation:
           "interface で依存を抽象化し、コンストラクタ（New関数）で注入する。これが Go の標準的な DI パターン。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "Go の DI で interface を使う利点は何か？また wire や fx を使うべき規模の目安は？",
+        blanks: ["テストでモックに差し替え可能","疎結合","50+ の依存で wire/fx を検討"],
+        explanation: "interface で依存を抽象化すると、テスト時に mock を注入できる。Go の暗黙的実装により後から interface を定義しても既存コードに影響しない。wire（コード生成）や fx（リフレクション）は main の配線コードが 100行超、50以上の依存が生まれたら導入を検討する。",
       },
     ],
   },
@@ -3349,6 +3505,13 @@ func processRequests(reqs []Request) []Response {
         blanks: ["sync", "Get", "Put"],
         explanation:
           "sync.Pool の Get() でオブジェクトを取得（なければ New が呼ばれる）、Put() で返却する。GC 間でオブジェクトを再利用しヒープ割り当てを削減。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "GOGC=200 に設定した場合、デフォルト(100)と比べてどう変わるか？メリット・デメリットは？",
+        blanks: ["GC 頻度が下がる","スループット向上","メモリ使用量が増加"],
+        explanation: "GOGC=100 はヒープが前回 GC 後の 2倍で次の GC が走る。GOGC=200 は 3倍になるまで待つ。GC の CPU 消費が減りスループットが向上するが、ヒープが大きくなる。コンテナ環境では GOMEMLIMIT と組み合わせてメモリ上限を設定する。",
       },
     ],
   },
@@ -3718,6 +3881,13 @@ slog.Info("request",
         explanation:
           "log/slog パッケージの JSONHandler で構造化ログを出力。slog.Info で key-value ペア、slog.With でロガーに共通属性を付加。",
       },
+    
+      {
+        type: "concept" as const,
+        code: "log.Println より slog を使うべき理由は何か？本番で重要な点は？",
+        blanks: ["構造化（機械可読）","ログレベル制御","コンテキスト連携"],
+        explanation: "log.Println は非構造化で検索・集計が困難。slog は key-value ペアで JSON 出力するため、Datadog/CloudWatch でのフィルタリングが容易。本番では INFO 以上のみ出力し DEBUG を除外。slog.With('request_id', id) でリクエストスコープのログを構造化し、分散トレーシングと連携できる。",
+      },
     ],
   },
 
@@ -3819,6 +3989,13 @@ func callAPI(ctx context.Context, url string) ([]byte, error) {
         blanks: ["WithTimeout", "Context", "Body", "LimitReader"],
         explanation:
           "context.WithTimeout でタイムアウト設定、NewRequestWithContext で context を紐づけ、defer Body.Close() で確実にクローズ、LimitReader でサイズ制限。",
+      },
+    
+      {
+        type: "concept" as const,
+        code: "http.DefaultClient を本番で使ってはいけない理由は何か？必ず設定すべき項目は？",
+        blanks: ["タイムアウトなし → 永久ブロック","Timeout フィールドを設定","Transport のプール設定"],
+        explanation: "http.DefaultClient は Timeout がゼロ（無制限）。外部 API が応答しないと goroutine が永久にブロックし、接続が枯渇する。本番では http.Client{Timeout: 10*time.Second} を設定。Transport に MaxIdleConnsPerHost を設定してコネクションプールも最適化する。context.WithTimeout でリクエスト単位のタイムアウトも重要。",
       },
     ],
   },

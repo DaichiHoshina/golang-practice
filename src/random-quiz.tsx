@@ -65,9 +65,12 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const wrongCount = Object.values(scores).filter((r) => r === "wrong").length;
   const answered = correctCount + wrongCount;
 
+  const isConcept = current?.quiz.type === "concept";
+
   const renderedCode = useMemo(() => {
     if (!current) return "";
     const { quiz } = current;
+    if (quiz.type === "concept") return "";
 
     if (revealed) {
       let result = quiz.code;
@@ -166,34 +169,45 @@ export function RandomQuiz({ scores, onScore }: Props) {
             </span>
           </div>
 
-          <pre class="code-block border-l-3 border-info/30">
-            <code
-              class="hljs"
-              dangerouslySetInnerHTML={{ __html: renderedCode }}
-            />
-          </pre>
+          {isConcept ? (
+            <p class="text-sm font-medium leading-relaxed mb-1">
+              <HighlightedText text={current.quiz.code} />
+            </p>
+          ) : (
+            <pre class="code-block border-l-3 border-info/30">
+              <code
+                class="hljs"
+                dangerouslySetInnerHTML={{ __html: renderedCode }}
+              />
+            </pre>
+          )}
 
           {!revealed ? (
             <div class="mt-4">
               <button
-                class="btn btn-info btn-outline btn-sm"
+                class={`btn btn-sm btn-outline ${isConcept ? "btn-secondary" : "btn-info"}`}
                 onClick={() => setRevealed(true)}
                 aria-expanded="false"
               >
-                正解を見る
+                {isConcept ? "答えを見る" : "正解を見る"}
               </button>
             </div>
           ) : (
             <div class="mt-4 space-y-3">
               <div class="flex flex-wrap gap-2">
                 {current.quiz.blanks.map((b, i) => (
-                  <span key={i} class="badge badge-info badge-sm gap-1">
-                    <span class="opacity-60">{i + 1}.</span> {b}
+                  <span
+                    key={i}
+                    class={`badge badge-sm gap-1 ${isConcept ? "badge-secondary" : "badge-info"}`}
+                  >
+                    {!isConcept && <span class="opacity-60">{i + 1}.</span>} {b}
                   </span>
                 ))}
               </div>
 
-              <div class="bg-info/5 border border-info/15 rounded-lg p-3">
+              <div
+                class={`border rounded-lg p-3 ${isConcept ? "bg-secondary/5 border-secondary/15" : "bg-info/5 border-info/15"}`}
+              >
                 <p class="text-xs opacity-80 leading-relaxed">
                   <HighlightedText text={current.quiz.explanation} />
                 </p>

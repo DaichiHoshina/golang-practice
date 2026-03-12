@@ -93,8 +93,10 @@ const BLANK_MARKER = "____";
 
 function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
   const [revealed, setRevealed] = useState(false);
+  const isConcept = quiz.type === "concept";
 
   const renderedCode = useMemo(() => {
+    if (isConcept) return "";
     if (revealed) {
       let result = quiz.code;
       for (const answer of quiz.blanks) {
@@ -113,7 +115,55 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
       `<span class="quiz-blank-hidden">${BLANK_MARKER}</span>`,
     );
     return html;
-  }, [quiz.code, quiz.blanks, revealed]);
+  }, [quiz.code, quiz.blanks, revealed, isConcept]);
+
+  if (isConcept) {
+    return (
+      <div class="border border-secondary/20 rounded-box overflow-hidden">
+        <div class="bg-secondary/5 px-4 py-2 flex items-center justify-between">
+          <span class="text-xs font-bold text-secondary">
+            Q{index + 1}. 理論問題
+          </span>
+          {!revealed && (
+            <span class="text-[0.65rem] opacity-40">
+              考えてから答えを見よう
+            </span>
+          )}
+        </div>
+        <div class="p-3">
+          <p class="text-sm font-medium leading-relaxed mb-3">
+            <HighlightedText text={quiz.code} />
+          </p>
+          {!revealed ? (
+            <button
+              class="btn btn-secondary btn-outline btn-sm"
+              onClick={() => setRevealed(true)}
+              aria-expanded="false"
+            >
+              答えを見る
+            </button>
+          ) : (
+            <div class="space-y-2">
+              {quiz.blanks.length > 0 && (
+                <div class="flex flex-wrap gap-2">
+                  {quiz.blanks.map((b, i) => (
+                    <span key={i} class="badge badge-secondary badge-sm">
+                      {b}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div class="bg-secondary/5 border border-secondary/15 rounded-lg p-3">
+                <p class="text-xs opacity-80 leading-relaxed">
+                  <HighlightedText text={quiz.explanation} />
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div class="border border-info/20 rounded-box overflow-hidden">
@@ -168,7 +218,7 @@ function QuizSection({ quizzes }: { quizzes: Quiz[] }) {
   if (!quizzes.length) return null;
   return (
     <div class="mt-4 space-y-3">
-      <div class="text-xs font-bold opacity-50">穴埋め問題</div>
+      <div class="text-xs font-bold opacity-50">確認問題</div>
       {quizzes.map((q, i) => (
         <QuizCard key={i} quiz={q} index={i} />
       ))}

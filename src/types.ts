@@ -9,8 +9,9 @@ export interface InterviewPoint {
 }
 
 export interface Quiz {
-  code: string;
-  blanks: string[];
+  type?: "code" | "concept"; // "code" = fill-in-blank, "concept" = theory Q&A (default: "code")
+  code: string; // "code": Go code with ____. "concept": the question text
+  blanks: string[]; // "code": answers. "concept": key answer keywords
   explanation: string;
 }
 
