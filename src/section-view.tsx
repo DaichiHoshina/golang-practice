@@ -103,14 +103,15 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
       return hljs.highlight(result, { language: "go" }).value;
     }
 
-    const parts = quiz.code.split(BLANK_MARKER);
-    let html = "";
-    for (let i = 0; i < parts.length; i++) {
-      html += hljs.highlight(parts[i], { language: "go" }).value;
-      if (i < parts.length - 1) {
-        html += `<span class="quiz-blank-hidden" title="クリックで正解を表示">${BLANK_MARKER}</span>`;
-      }
-    }
+    const PLACEHOLDER = "__BLNK__";
+    const blankRe = new RegExp(BLANK_MARKER, "g");
+    const placeholderRe = new RegExp(PLACEHOLDER, "g");
+    const codeWithPlaceholders = quiz.code.replace(blankRe, PLACEHOLDER);
+    let html = hljs.highlight(codeWithPlaceholders, { language: "go" }).value;
+    html = html.replace(
+      placeholderRe,
+      `<span class="quiz-blank-hidden">${BLANK_MARKER}</span>`,
+    );
     return html;
   }, [quiz.code, quiz.blanks, revealed]);
 
@@ -138,6 +139,7 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
           <button
             class="btn btn-info btn-outline btn-sm mt-3"
             onClick={() => setRevealed(true)}
+            aria-expanded="false"
           >
             正解を見る
           </button>

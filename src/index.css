@@ -4,10 +4,6 @@
   themes: night --default
 }
 
-@theme {
-  --color-go: #00ADD8;
-}
-
 ::-webkit-scrollbar {
   width: 5px;
 }
@@ -45,17 +41,6 @@
 }
 .code-bad {
   border-left: 3px solid oklch(0.65 0.2 25);
-}
-
-.quiz-blank {
-  display: inline-block;
-  min-width: 4rem;
-  border-bottom: 2px dashed oklch(0.65 0.15 250);
-  color: oklch(0.65 0.15 250);
-  font-weight: 600;
-  text-align: center;
-  padding: 0 0.25rem;
-  cursor: default;
 }
 
 .quiz-blank-hidden {
