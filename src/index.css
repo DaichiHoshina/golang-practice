@@ -1,7 +1,15 @@
 @import "tailwindcss";
 @import "highlight.js/styles/github.css";
 @plugin "daisyui" {
-  themes: cupcake --default
+  themes: light --default
+}
+
+/* Go brand teal override */
+:root {
+  --color-primary: oklch(0.54 0.14 206);
+  --color-primary-content: oklch(1 0 0);
+  --color-secondary: oklch(0.46 0.09 240);
+  --color-secondary-content: oklch(1 0 0);
 }
 
 ::-webkit-scrollbar {
@@ -51,30 +59,30 @@
 }
 
 /* Text fill-in-blank (inline in text) */
-/* Uses cupcake primary pink hue (348) to blend with the theme */
+/* Uses Go teal hue (206) to match the theme */
 .text-blank-hidden {
   display: inline-block;
   min-width: 3rem;
-  background: oklch(0.93 0.05 348 / 0.55);
+  background: oklch(0.90 0.06 206 / 0.55);
   border: none;
   border-radius: 0.25rem;
   padding: 0.1rem 0.6rem;
   margin: 0 0.15rem;
-  color: oklch(0.42 0.12 348);
+  color: oklch(0.36 0.14 206);
   font-size: inherit;
   font-family: inherit;
   font-weight: 600;
   cursor: pointer;
-  border-bottom: 2px dashed oklch(0.55 0.10 348 / 0.55);
+  border-bottom: 2px dashed oklch(0.50 0.12 206 / 0.60);
   transition: all 0.2s;
   vertical-align: baseline;
 }
 .text-blank-hidden:hover {
-  background: oklch(0.87 0.08 348 / 0.65);
-  color: oklch(0.32 0.13 348);
+  background: oklch(0.84 0.09 206 / 0.65);
+  color: oklch(0.28 0.15 206);
 }
 .text-blank-hidden:focus-visible {
-  outline: 2px solid oklch(0.55 0.10 348);
+  outline: 2px solid oklch(0.50 0.12 206);
   outline-offset: 2px;
 }
 
@@ -141,10 +149,10 @@
   pointer-events: none;
 }
 
-/* Milestone card glow — matches cupcake primary pink */
+/* Milestone card glow — matches Go teal primary */
 @keyframes milestone-glow {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.76 0.12 348 / 0); }
-  50% { box-shadow: 0 0 20px 4px oklch(0.76 0.12 348 / 0.35); }
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.54 0.14 206 / 0); }
+  50% { box-shadow: 0 0 20px 4px oklch(0.54 0.14 206 / 0.35); }
 }
 .milestone-card {
   animation: milestone-glow 2s ease-in-out infinite;
