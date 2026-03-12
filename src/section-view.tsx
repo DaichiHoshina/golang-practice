@@ -91,9 +91,52 @@ function InterviewBox({ points }: { points: InterviewPoint[] }) {
 
 const BLANK_MARKER = "____";
 
+/** Split text by ____ and render with inline clickable blanks */
+function TextWithBlanks({
+  text,
+  blanks,
+  openSet,
+  onToggle,
+}: {
+  text: string;
+  blanks: string[];
+  openSet: Set<number>;
+  onToggle: (idx: number) => void;
+}) {
+  const parts = text.split(BLANK_MARKER);
+  const elements: (string | ReturnType<typeof HighlightedText>)[] = [];
+  let blankIdx = 0;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i])
+      elements.push(<HighlightedText key={`t${i}`} text={parts[i]} />);
+    if (i < parts.length - 1 && blankIdx < blanks.length) {
+      const idx = blankIdx;
+      if (openSet.has(idx)) {
+        elements.push(
+          <span key={`b${idx}`} class="text-blank-revealed">
+            {blanks[idx]}
+          </span>,
+        );
+      } else {
+        elements.push(
+          <button
+            key={`b${idx}`}
+            class="text-blank-hidden"
+            onClick={() => onToggle(idx)}
+          >
+            ____
+          </button>,
+        );
+      }
+      blankIdx++;
+    }
+  }
+  return <span>{elements}</span>;
+}
+
 function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
   const [openSet, setOpenSet] = useState<Set<number>>(new Set());
-  const isConcept = quiz.type === "concept";
+  const qType = quiz.type ?? "text";
   const allOpen = openSet.size >= quiz.blanks.length;
 
   const toggle = (idx: number) => {
@@ -104,25 +147,22 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
     });
   };
 
+  // Code type: syntax-highlighted code block (legacy)
   const renderedCode = useMemo(() => {
-    if (isConcept) return "";
+    if (qType !== "code") return "";
 
-    const PLACEHOLDER_PREFIX = "__BLK";
-    const PLACEHOLDER_SUFFIX = "K__";
+    const PH_PRE = "__BLK";
+    const PH_SUF = "K__";
     let codeForHl = quiz.code;
-    let blankIdx = 0;
+    let bi = 0;
     while (codeForHl.includes(BLANK_MARKER)) {
-      codeForHl = codeForHl.replace(
-        BLANK_MARKER,
-        `${PLACEHOLDER_PREFIX}${blankIdx}${PLACEHOLDER_SUFFIX}`,
-      );
-      blankIdx++;
+      codeForHl = codeForHl.replace(BLANK_MARKER, `${PH_PRE}${bi}${PH_SUF}`);
+      bi++;
     }
 
     let html = hljs.highlight(codeForHl, { language: "go" }).value;
-
     for (let i = 0; i < quiz.blanks.length; i++) {
-      const ph = `${PLACEHOLDER_PREFIX}${i}${PLACEHOLDER_SUFFIX}`;
+      const ph = `${PH_PRE}${i}${PH_SUF}`;
       if (openSet.has(i)) {
         html = html.replace(
           ph,
@@ -136,7 +176,7 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
       }
     }
     return html;
-  }, [quiz.code, quiz.blanks, openSet, isConcept]);
+  }, [quiz.code, quiz.blanks, openSet, qType]);
 
   const handleCodeClick = (e: Event) => {
     const target = e.target as HTMLElement;
@@ -146,7 +186,8 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
     }
   };
 
-  if (isConcept) {
+  // ── Concept type ──
+  if (qType === "concept") {
     return (
       <div class="border border-secondary/20 rounded-box overflow-hidden">
         <div class="bg-secondary/5 px-4 py-2 flex items-center justify-between">
@@ -192,11 +233,47 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
     );
   }
 
+  // ── Text fill-in-blank type (default) ──
+  if (qType === "text") {
+    return (
+      <div class="border border-info/20 rounded-box overflow-hidden">
+        <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
+          <span class="text-xs font-bold text-info">
+            Q{index + 1}. 穴埋め問題
+          </span>
+          {!allOpen && (
+            <span class="text-[0.65rem] opacity-40">
+              ____ をクリックして答えを開こう
+            </span>
+          )}
+        </div>
+        <div class="p-3">
+          <p class="text-sm leading-relaxed">
+            <TextWithBlanks
+              text={quiz.code}
+              blanks={quiz.blanks}
+              openSet={openSet}
+              onToggle={toggle}
+            />
+          </p>
+          {allOpen && (
+            <div class="mt-3 bg-info/5 border border-info/15 rounded-lg p-3">
+              <p class="text-xs opacity-80 leading-relaxed">
+                <HighlightedText text={quiz.explanation} />
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Code fill-in-blank type (legacy) ──
   return (
     <div class="border border-info/20 rounded-box overflow-hidden">
       <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
         <span class="text-xs font-bold text-info">
-          Q{index + 1}. 穴埋め問題
+          Q{index + 1}. コード穴埋め
         </span>
         {!allOpen && (
           <span class="text-[0.65rem] opacity-40">
@@ -214,7 +291,6 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
             dangerouslySetInnerHTML={{ __html: renderedCode }}
           />
         </pre>
-
         <div class="mt-3 flex flex-wrap gap-2">
           {quiz.blanks.map((b, i) => (
             <span
@@ -226,7 +302,6 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
             </span>
           ))}
         </div>
-
         {allOpen && (
           <div class="mt-2 bg-info/5 border border-info/15 rounded-lg p-3">
             <p class="text-xs opacity-80 leading-relaxed">

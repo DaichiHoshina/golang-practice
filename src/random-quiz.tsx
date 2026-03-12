@@ -64,7 +64,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const wrongCount = Object.values(scores).filter((r) => r === "wrong").length;
   const answered = correctCount + wrongCount;
 
-  const isConcept = current?.quiz.type === "concept";
+  const qType = current?.quiz.type ?? "text";
   const allOpen = current ? openSet.size >= current.quiz.blanks.length : false;
 
   const toggleBlank = (idx: number) => {
@@ -75,10 +75,44 @@ export function RandomQuiz({ scores, onScore }: Props) {
     });
   };
 
+  /** Build inline text with clickable blanks for text type */
+  const textElements = useMemo(() => {
+    if (!current || qType !== "text") return null;
+    const parts = current.quiz.code.split(BLANK);
+    const result: ReturnType<typeof HighlightedText>[] = [];
+    let bi = 0;
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i])
+        result.push(<HighlightedText key={`t${i}`} text={parts[i]} />);
+      if (i < parts.length - 1 && bi < current.quiz.blanks.length) {
+        const idx = bi;
+        if (openSet.has(idx)) {
+          result.push(
+            <span key={`b${idx}`} class="text-blank-revealed">
+              {current.quiz.blanks[idx]}
+            </span>,
+          );
+        } else {
+          result.push(
+            <button
+              key={`b${idx}`}
+              class="text-blank-hidden"
+              onClick={() => toggleBlank(idx)}
+            >
+              ____
+            </button>,
+          );
+        }
+        bi++;
+      }
+    }
+    return result;
+  }, [current, openSet, qType]);
+
+  /** Code type: syntax-highlighted (legacy) */
   const renderedCode = useMemo(() => {
-    if (!current) return "";
+    if (!current || qType !== "code") return "";
     const { quiz } = current;
-    if (quiz.type === "concept") return "";
 
     const PH_PRE = "__BLK";
     const PH_SUF = "K__";
@@ -90,7 +124,6 @@ export function RandomQuiz({ scores, onScore }: Props) {
     }
 
     let html = hljs.highlight(codeForHl, { language: "go" }).value;
-
     for (let i = 0; i < quiz.blanks.length; i++) {
       const ph = `${PH_PRE}${i}${PH_SUF}`;
       if (openSet.has(i)) {
@@ -106,7 +139,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
       }
     }
     return html;
-  }, [current, openSet]);
+  }, [current, openSet, qType]);
 
   const handleCodeClick = (e: Event) => {
     const target = e.target as HTMLElement;
@@ -194,9 +227,14 @@ export function RandomQuiz({ scores, onScore }: Props) {
             </span>
           </div>
 
-          {isConcept ? (
+          {/* Question display based on type */}
+          {qType === "concept" ? (
             <p class="text-sm font-medium leading-relaxed mb-1">
               <HighlightedText text={current.quiz.code} />
+            </p>
+          ) : qType === "text" ? (
+            <p class="text-sm leading-relaxed">
+              <span>{textElements}</span>
             </p>
           ) : (
             <pre
@@ -210,32 +248,31 @@ export function RandomQuiz({ scores, onScore }: Props) {
             </pre>
           )}
 
-          {/* Answer badges - click to reveal individually */}
-          <div class="mt-3 flex flex-wrap gap-2">
-            {current.quiz.blanks.map((b, i) =>
-              openSet.has(i) ? (
-                <span
-                  key={i}
-                  class={`badge badge-sm gap-1 ${isConcept ? "badge-secondary" : "badge-info"}`}
-                >
-                  {!isConcept && <span class="opacity-60">{i + 1}.</span>} {b}
-                </span>
-              ) : (
-                <button
-                  key={i}
-                  class={`badge badge-sm cursor-pointer transition-colors ${isConcept ? "badge-ghost hover:badge-secondary" : "badge-ghost hover:badge-info"}`}
-                  onClick={() => toggleBlank(i)}
-                >
-                  {isConcept ? `ヒント ${i + 1}` : `${i + 1}. ???`}
-                </button>
-              ),
-            )}
-          </div>
+          {/* Concept: hint badges */}
+          {qType === "concept" && (
+            <div class="mt-3 flex flex-wrap gap-2">
+              {current.quiz.blanks.map((b, i) =>
+                openSet.has(i) ? (
+                  <span key={i} class="badge badge-secondary badge-sm">
+                    {b}
+                  </span>
+                ) : (
+                  <button
+                    key={i}
+                    class="badge badge-ghost badge-sm cursor-pointer hover:badge-secondary transition-colors"
+                    onClick={() => toggleBlank(i)}
+                  >
+                    ヒント {i + 1}
+                  </button>
+                ),
+              )}
+            </div>
+          )}
 
           {allOpen && (
             <div class="mt-3 space-y-3">
               <div
-                class={`border rounded-lg p-3 ${isConcept ? "bg-secondary/5 border-secondary/15" : "bg-info/5 border-info/15"}`}
+                class={`border rounded-lg p-3 ${qType === "concept" ? "bg-secondary/5 border-secondary/15" : "bg-info/5 border-info/15"}`}
               >
                 <p class="text-xs opacity-80 leading-relaxed">
                   <HighlightedText text={current.quiz.explanation} />
