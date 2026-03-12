@@ -82,7 +82,7 @@ function TermPopup({
         <div class="flex items-start justify-between gap-2 mb-1.5">
           <span class="text-primary font-bold text-sm">{info.term}</span>
           <button
-            class="text-xs opacity-40 hover:opacity-80 shrink-0 p-2 -m-1 rounded"
+            class="text-xs opacity-60 hover:opacity-90 shrink-0 p-2 -m-1 rounded"
             onClick={(e: Event) => {
               e.stopPropagation();
               onClose();
@@ -92,7 +92,7 @@ function TermPopup({
             ✕
           </button>
         </div>
-        <p class="text-xs opacity-80 leading-relaxed">{info.desc}</p>
+        <p class="text-xs opacity-90 leading-relaxed">{info.desc}</p>
       </div>
     </>
   );

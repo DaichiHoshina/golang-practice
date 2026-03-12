@@ -89,7 +89,7 @@ export function App() {
             ☰
           </button>
           <span class="font-bold text-primary tracking-widest text-sm">GO</span>
-          <span class="text-xs opacity-50 hidden sm:inline">
+          <span class="text-xs opacity-70 hidden sm:inline">
             実務学習ガイド
           </span>
         </div>
@@ -100,11 +100,11 @@ export function App() {
               value={progressPct}
               max={100}
             />
-            <span class="text-xs opacity-60">{progressPct}%</span>
+            <span class="text-xs opacity-70">{progressPct}%</span>
           </div>
         </div>
         <div class="navbar-end">
-          <span class="text-xs opacity-55">
+          <span class="text-xs opacity-70">
             {completedCount}/{TOTAL_TOPICS}
           </span>
         </div>
@@ -131,7 +131,7 @@ export function App() {
                   onClick={() => navigate("dashboard")}
                 >
                   <span class="flex items-center gap-2">
-                    <span class="opacity-50 w-4 text-center text-xs">~</span>
+                    <span class="opacity-70 w-4 text-center text-xs">~</span>
                     <span>Dashboard</span>
                   </span>
                 </button>
@@ -143,14 +143,14 @@ export function App() {
                   onClick={() => navigate("random-quiz")}
                 >
                   <span class="flex items-center gap-2">
-                    <span class="opacity-50 w-4 text-center text-xs">?</span>
+                    <span class="opacity-70 w-4 text-center text-xs">?</span>
                     <span>ランダム出題</span>
                   </span>
                 </button>
               </li>
               {/* Divider */}
               <li class="menu-title mt-1 mb-0">
-                <span class="text-[0.6rem] opacity-30">セクション</span>
+                <span class="text-[0.6rem] opacity-55">セクション</span>
               </li>
               {/* Section items */}
               {SECTIONS.filter((s) => s.id !== "dashboard").map((s) => {
@@ -164,7 +164,7 @@ export function App() {
                       onClick={() => navigate(s.id)}
                     >
                       <span class="flex items-center gap-2">
-                        <span class="opacity-50 w-4 text-center text-xs">
+                        <span class="opacity-70 w-4 text-center text-xs">
                           {s.icon}
                         </span>
                         <span>{s.title}</span>
@@ -172,7 +172,7 @@ export function App() {
                       {total > 0 && (
                         <span
                           class={`text-xs ${
-                            done === total ? "text-primary" : "opacity-40"
+                            done === total ? "text-primary" : "opacity-60"
                           }`}
                         >
                           {done}/{total}
@@ -184,7 +184,7 @@ export function App() {
               })}
             </ul>
             <div class="p-3 border-t border-base-300 text-center">
-              <span class="text-xs opacity-40">Backend Engineer Ed.</span>
+              <span class="text-xs opacity-50">Backend Engineer Ed.</span>
             </div>
           </aside>
         )}

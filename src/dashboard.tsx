@@ -57,7 +57,7 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
       <div>
         <div class="text-2xl mb-1">{greeting.emoji}</div>
         <h1 class="text-2xl font-bold">Go 実務学習ガイド</h1>
-        <p class="text-sm opacity-60 mt-1">{greeting.text}</p>
+        <p class="text-sm opacity-75 mt-1">{greeting.text}</p>
       </div>
 
       {/* Overall Progress */}
@@ -81,7 +81,7 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
             <span class="text-xs font-semibold text-primary/80">
               {milestone.msg}
             </span>
-            <span class="text-xs opacity-60 ml-auto">{progressPct}%</span>
+            <span class="text-xs opacity-70 ml-auto">{progressPct}%</span>
           </div>
         </div>
       </div>
@@ -93,8 +93,8 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
             ★ 今日のおすすめ学習
           </div>
           <h3 class="text-sm font-semibold">{recTopic?.title}</h3>
-          <p class="text-xs opacity-65 mt-1">{todayRec.reason}</p>
-          <p class="text-xs opacity-55 mt-0.5">
+          <p class="text-xs opacity-75 mt-1">{todayRec.reason}</p>
+          <p class="text-xs opacity-70 mt-0.5">
             セクション: {recSection?.title}
           </p>
           <div class="card-actions mt-3">
@@ -110,7 +110,7 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
 
       {/* Section Grid */}
       <div>
-        <h2 class="text-xs font-semibold opacity-65 uppercase tracking-widest mb-3">
+        <h2 class="text-xs font-semibold opacity-80 uppercase tracking-widest mb-3">
           セクション別進捗
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -130,7 +130,7 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
                       ✓ 制覇
                     </span>
                   ) : (
-                    <span class="text-xs opacity-40">
+                    <span class="text-xs opacity-65">
                       {s.done}/{s.total}
                     </span>
                   )}
@@ -140,7 +140,7 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
                   value={s.total > 0 ? (s.done / s.total) * 100 : 0}
                   max={100}
                 />
-                <p class="text-xs opacity-60 mt-2 truncate">{s.description}</p>
+                <p class="text-xs opacity-75 mt-2 truncate">{s.description}</p>
               </div>
             </button>
           ))}
