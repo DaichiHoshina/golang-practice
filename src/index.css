@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: night --default
+}
+
+@theme {
+  --color-go: #00ADD8;
+  --color-go-light: #00c4f5;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.3 0 0);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.4 0 0);
+}
+
+.code-block {
+  background: #0d1117;
+  border: 1px solid #1e2530;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono",
+    monospace;
+  font-size: 0.72rem;
+  line-height: 1.75;
+  overflow-x: auto;
+  white-space: pre;
+  color: #cdd6f4;
+}
+
+.code-good {
+  border-left: 3px solid oklch(0.7 0.15 145);
+}
+.code-bad {
+  border-left: 3px solid oklch(0.65 0.2 25);
+}
