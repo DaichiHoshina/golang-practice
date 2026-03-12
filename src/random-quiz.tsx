@@ -425,7 +425,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
       </div>
 
       {/* Keyboard hint */}
-      <div class="text-center text-xs opacity-50 hidden sm:block">
+      <div class="text-center text-xs opacity-65 hidden sm:block">
         <kbd class="kbd kbd-xs">Space</kbd> 次のブランクを開く{" "}
         <kbd class="kbd kbd-xs">→</kbd> わかった <kbd class="kbd kbd-xs">←</kbd>{" "}
         もう一度

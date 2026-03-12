@@ -150,7 +150,7 @@ export function App() {
               </li>
               {/* Divider */}
               <li class="menu-title mt-1 mb-0">
-                <span class="text-[0.6rem] opacity-55">セクション</span>
+                <span class="text-[0.6rem] opacity-70">セクション</span>
               </li>
               {/* Section items */}
               {SECTIONS.filter((s) => s.id !== "dashboard").map((s) => {
@@ -184,7 +184,7 @@ export function App() {
               })}
             </ul>
             <div class="p-3 border-t border-base-300 text-center">
-              <span class="text-xs opacity-50">Backend Engineer Ed.</span>
+              <span class="text-xs opacity-65">Backend Engineer Ed.</span>
             </div>
           </aside>
         )}
