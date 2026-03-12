@@ -3,6 +3,11 @@ export interface Tradeoff {
   desc: string;
 }
 
+export interface InterviewPoint {
+  point: string;
+  detail?: string;
+}
+
 export interface Topic {
   id: string;
   section: string;
@@ -13,7 +18,7 @@ export interface Topic {
   tradeoffs: Tradeoff[];
   badCode: string;
   goodCode: string;
-  interviewPoints: string[];
+  interviewPoints: InterviewPoint[];
 }
 
 export interface Section {

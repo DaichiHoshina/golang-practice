@@ -1,5 +1,5 @@
 import { useState, useMemo } from "hono/jsx/dom";
-import type { Topic, Section } from "./types";
+import type { Topic, Section, InterviewPoint } from "./types";
 import { TOPICS, TAG_BADGE } from "./data";
 import { HighlightedText } from "./term-highlight";
 import hljs from "highlight.js/lib/core";
@@ -39,9 +39,40 @@ function CodeBlock({
   );
 }
 
+// ─── Interview Point Item ────────────────────────────────
+
+function InterviewPointItem({ item }: { item: InterviewPoint }) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = !!item.detail;
+
+  return (
+    <li class="text-xs opacity-80 leading-relaxed">
+      <div
+        class={`flex gap-2 ${hasDetail ? "cursor-pointer hover:opacity-100 transition-opacity" : ""}`}
+        onClick={() => hasDetail && setOpen((o: boolean) => !o)}
+      >
+        <span class="text-secondary shrink-0 mt-0.5">→</span>
+        <span class="flex-1">
+          <HighlightedText text={item.point} />
+          {hasDetail && (
+            <span class="ml-1.5 text-secondary/60 text-[0.65rem]">
+              {open ? "▲" : "▼ 詳細"}
+            </span>
+          )}
+        </span>
+      </div>
+      {open && item.detail && (
+        <div class="ml-5 mt-1.5 pl-3 border-l-2 border-secondary/20 text-xs opacity-70 leading-relaxed">
+          <HighlightedText text={item.detail} />
+        </div>
+      )}
+    </li>
+  );
+}
+
 // ─── Interview Box ───────────────────────────────────────
 
-function InterviewBox({ points }: { points: string[] }) {
+function InterviewBox({ points }: { points: InterviewPoint[] }) {
   return (
     <div class="mt-4 bg-secondary/5 border border-secondary/20 rounded-box p-4">
       <div class="text-xs font-bold text-secondary mb-2.5">
@@ -49,12 +80,7 @@ function InterviewBox({ points }: { points: string[] }) {
       </div>
       <ul class="space-y-1.5">
         {points.map((p, i) => (
-          <li key={i} class="text-xs opacity-80 flex gap-2 leading-relaxed">
-            <span class="text-secondary shrink-0 mt-0.5">→</span>
-            <span>
-              <HighlightedText text={p} />
-            </span>
-          </li>
+          <InterviewPointItem key={i} item={p} />
         ))}
       </ul>
     </div>
