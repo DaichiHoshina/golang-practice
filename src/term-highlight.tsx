@@ -57,9 +57,9 @@ function TermPopup({
 
   return (
     <>
-      {/* Invisible backdrop to catch outside clicks */}
+      {/* Backdrop to catch outside clicks */}
       <div
-        class="fixed inset-0 z-40"
+        class="fixed inset-0 z-40 bg-black/20"
         onClick={(e: Event) => {
           e.stopPropagation();
           onClose();
@@ -69,8 +69,8 @@ function TermPopup({
       <div
         class={
           isMobile
-            ? "fixed bottom-0 left-0 right-0 z-50 bg-base-200 border-t border-base-300 rounded-t-2xl px-5 py-4 shadow-2xl popup-slide-up"
-            : "z-50 bg-base-200 border border-base-300 rounded-xl shadow-xl px-4 py-3 popup-fade-in"
+            ? "fixed bottom-0 left-0 right-0 z-50 bg-base-100 border-t border-base-300 rounded-t-2xl px-5 py-4 shadow-2xl popup-slide-up"
+            : "z-50 bg-base-100 border border-base-300 rounded-xl shadow-2xl px-4 py-3 popup-fade-in"
         }
         style={style}
         onClick={(e: Event) => e.stopPropagation()}
