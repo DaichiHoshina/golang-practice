@@ -42,7 +42,6 @@ export interface QuizScores {
 // hardcoded Go code strings from data.ts, never user input.
 
 const BLANK = "____";
-const PLACEHOLDER = "__BLNK__";
 
 interface Props {
   scores: QuizScores;
@@ -54,7 +53,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
     shuffle(ALL_QUIZZES),
   );
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [revealed, setRevealed] = useState(false);
+  const [openSet, setOpenSet] = useState<Set<number>>(new Set());
 
   const current = queue[currentIdx];
   const total = ALL_QUIZZES.length;
@@ -66,37 +65,63 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const answered = correctCount + wrongCount;
 
   const isConcept = current?.quiz.type === "concept";
+  const allOpen = current ? openSet.size >= current.quiz.blanks.length : false;
+
+  const toggleBlank = (idx: number) => {
+    setOpenSet((prev) => {
+      const next = new Set(prev);
+      next.add(idx);
+      return next;
+    });
+  };
 
   const renderedCode = useMemo(() => {
     if (!current) return "";
     const { quiz } = current;
     if (quiz.type === "concept") return "";
 
-    if (revealed) {
-      let result = quiz.code;
-      for (const answer of quiz.blanks) {
-        result = result.replace(BLANK, answer);
-      }
-      return hljs.highlight(result, { language: "go" }).value;
+    const PH_PRE = "__BLK";
+    const PH_SUF = "K__";
+    let codeForHl = quiz.code;
+    let bi = 0;
+    while (codeForHl.includes(BLANK)) {
+      codeForHl = codeForHl.replace(BLANK, `${PH_PRE}${bi}${PH_SUF}`);
+      bi++;
     }
 
-    const blankRe = new RegExp(BLANK, "g");
-    const placeholderRe = new RegExp(PLACEHOLDER, "g");
-    const codeWithPlaceholders = quiz.code.replace(blankRe, PLACEHOLDER);
-    let html = hljs.highlight(codeWithPlaceholders, { language: "go" }).value;
-    html = html.replace(
-      placeholderRe,
-      `<span class="quiz-blank-hidden">${BLANK}</span>`,
-    );
+    let html = hljs.highlight(codeForHl, { language: "go" }).value;
+
+    for (let i = 0; i < quiz.blanks.length; i++) {
+      const ph = `${PH_PRE}${i}${PH_SUF}`;
+      if (openSet.has(i)) {
+        html = html.replace(
+          ph,
+          `<span class="quiz-blank-revealed" data-idx="${i}">${quiz.blanks[i]}</span>`,
+        );
+      } else {
+        html = html.replace(
+          ph,
+          `<span class="quiz-blank-hidden" data-idx="${i}">${BLANK}</span>`,
+        );
+      }
+    }
     return html;
-  }, [current, revealed]);
+  }, [current, openSet]);
+
+  const handleCodeClick = (e: Event) => {
+    const target = e.target as HTMLElement;
+    const idx = target.getAttribute("data-idx");
+    if (idx !== null && target.classList.contains("quiz-blank-hidden")) {
+      toggleBlank(Number(idx));
+    }
+  };
 
   const scoreKey = current ? `${current.topicId}_${currentIdx % total}` : "";
 
   const handleResult = useCallback(
     (result: Result) => {
       onScore(scoreKey, result);
-      setRevealed(false);
+      setOpenSet(new Set());
       setCurrentIdx((i) => {
         if (i + 1 >= queue.length) {
           const wrongKeys = new Set(
@@ -118,7 +143,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const handleReshuffle = useCallback(() => {
     setQueue(shuffle(ALL_QUIZZES));
     setCurrentIdx(0);
-    setRevealed(false);
+    setOpenSet(new Set());
   }, []);
 
   if (!current) return null;
@@ -174,7 +199,10 @@ export function RandomQuiz({ scores, onScore }: Props) {
               <HighlightedText text={current.quiz.code} />
             </p>
           ) : (
-            <pre class="code-block border-l-3 border-info/30">
+            <pre
+              class="code-block border-l-3 border-info/30"
+              onClick={handleCodeClick}
+            >
               <code
                 class="hljs"
                 dangerouslySetInnerHTML={{ __html: renderedCode }}
@@ -182,29 +210,30 @@ export function RandomQuiz({ scores, onScore }: Props) {
             </pre>
           )}
 
-          {!revealed ? (
-            <div class="mt-4">
-              <button
-                class={`btn btn-sm btn-outline ${isConcept ? "btn-secondary" : "btn-info"}`}
-                onClick={() => setRevealed(true)}
-                aria-expanded="false"
-              >
-                {isConcept ? "答えを見る" : "正解を見る"}
-              </button>
-            </div>
-          ) : (
-            <div class="mt-4 space-y-3">
-              <div class="flex flex-wrap gap-2">
-                {current.quiz.blanks.map((b, i) => (
-                  <span
-                    key={i}
-                    class={`badge badge-sm gap-1 ${isConcept ? "badge-secondary" : "badge-info"}`}
-                  >
-                    {!isConcept && <span class="opacity-60">{i + 1}.</span>} {b}
-                  </span>
-                ))}
-              </div>
+          {/* Answer badges - click to reveal individually */}
+          <div class="mt-3 flex flex-wrap gap-2">
+            {current.quiz.blanks.map((b, i) =>
+              openSet.has(i) ? (
+                <span
+                  key={i}
+                  class={`badge badge-sm gap-1 ${isConcept ? "badge-secondary" : "badge-info"}`}
+                >
+                  {!isConcept && <span class="opacity-60">{i + 1}.</span>} {b}
+                </span>
+              ) : (
+                <button
+                  key={i}
+                  class={`badge badge-sm cursor-pointer transition-colors ${isConcept ? "badge-ghost hover:badge-secondary" : "badge-ghost hover:badge-info"}`}
+                  onClick={() => toggleBlank(i)}
+                >
+                  {isConcept ? `ヒント ${i + 1}` : `${i + 1}. ???`}
+                </button>
+              ),
+            )}
+          </div>
 
+          {allOpen && (
+            <div class="mt-3 space-y-3">
               <div
                 class={`border rounded-lg p-3 ${isConcept ? "bg-secondary/5 border-secondary/15" : "bg-info/5 border-info/15"}`}
               >

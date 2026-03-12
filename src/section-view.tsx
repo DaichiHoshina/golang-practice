@@ -92,30 +92,59 @@ function InterviewBox({ points }: { points: InterviewPoint[] }) {
 const BLANK_MARKER = "____";
 
 function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
-  const [revealed, setRevealed] = useState(false);
+  const [openSet, setOpenSet] = useState<Set<number>>(new Set());
   const isConcept = quiz.type === "concept";
+  const allOpen = openSet.size >= quiz.blanks.length;
+
+  const toggle = (idx: number) => {
+    setOpenSet((prev) => {
+      const next = new Set(prev);
+      next.add(idx);
+      return next;
+    });
+  };
 
   const renderedCode = useMemo(() => {
     if (isConcept) return "";
-    if (revealed) {
-      let result = quiz.code;
-      for (const answer of quiz.blanks) {
-        result = result.replace(BLANK_MARKER, answer);
-      }
-      return hljs.highlight(result, { language: "go" }).value;
+
+    const PLACEHOLDER_PREFIX = "__BLK";
+    const PLACEHOLDER_SUFFIX = "K__";
+    let codeForHl = quiz.code;
+    let blankIdx = 0;
+    while (codeForHl.includes(BLANK_MARKER)) {
+      codeForHl = codeForHl.replace(
+        BLANK_MARKER,
+        `${PLACEHOLDER_PREFIX}${blankIdx}${PLACEHOLDER_SUFFIX}`,
+      );
+      blankIdx++;
     }
 
-    const PLACEHOLDER = "__BLNK__";
-    const blankRe = new RegExp(BLANK_MARKER, "g");
-    const placeholderRe = new RegExp(PLACEHOLDER, "g");
-    const codeWithPlaceholders = quiz.code.replace(blankRe, PLACEHOLDER);
-    let html = hljs.highlight(codeWithPlaceholders, { language: "go" }).value;
-    html = html.replace(
-      placeholderRe,
-      `<span class="quiz-blank-hidden">${BLANK_MARKER}</span>`,
-    );
+    let html = hljs.highlight(codeForHl, { language: "go" }).value;
+
+    for (let i = 0; i < quiz.blanks.length; i++) {
+      const ph = `${PLACEHOLDER_PREFIX}${i}${PLACEHOLDER_SUFFIX}`;
+      if (openSet.has(i)) {
+        html = html.replace(
+          ph,
+          `<span class="quiz-blank-revealed" data-idx="${i}">${quiz.blanks[i]}</span>`,
+        );
+      } else {
+        html = html.replace(
+          ph,
+          `<span class="quiz-blank-hidden" data-idx="${i}">${BLANK_MARKER}</span>`,
+        );
+      }
+    }
     return html;
-  }, [quiz.code, quiz.blanks, revealed, isConcept]);
+  }, [quiz.code, quiz.blanks, openSet, isConcept]);
+
+  const handleCodeClick = (e: Event) => {
+    const target = e.target as HTMLElement;
+    const idx = target.getAttribute("data-idx");
+    if (idx !== null && target.classList.contains("quiz-blank-hidden")) {
+      toggle(Number(idx));
+    }
+  };
 
   if (isConcept) {
     return (
@@ -124,7 +153,7 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
           <span class="text-xs font-bold text-secondary">
             Q{index + 1}. 理論問題
           </span>
-          {!revealed && (
+          {!allOpen && (
             <span class="text-[0.65rem] opacity-40">
               考えてから答えを見よう
             </span>
@@ -134,30 +163,28 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
           <p class="text-sm font-medium leading-relaxed mb-3">
             <HighlightedText text={quiz.code} />
           </p>
-          {!revealed ? (
-            <button
-              class="btn btn-secondary btn-outline btn-sm"
-              onClick={() => setRevealed(true)}
-              aria-expanded="false"
-            >
-              答えを見る
-            </button>
-          ) : (
-            <div class="space-y-2">
-              {quiz.blanks.length > 0 && (
-                <div class="flex flex-wrap gap-2">
-                  {quiz.blanks.map((b, i) => (
-                    <span key={i} class="badge badge-secondary badge-sm">
-                      {b}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div class="bg-secondary/5 border border-secondary/15 rounded-lg p-3">
-                <p class="text-xs opacity-80 leading-relaxed">
-                  <HighlightedText text={quiz.explanation} />
-                </p>
-              </div>
+          <div class="flex flex-wrap gap-2">
+            {quiz.blanks.map((b, i) =>
+              openSet.has(i) ? (
+                <span key={i} class="badge badge-secondary badge-sm">
+                  {b}
+                </span>
+              ) : (
+                <button
+                  key={i}
+                  class="badge badge-ghost badge-sm cursor-pointer hover:badge-secondary transition-colors"
+                  onClick={() => toggle(i)}
+                >
+                  ヒント {i + 1}
+                </button>
+              ),
+            )}
+          </div>
+          {allOpen && (
+            <div class="mt-3 bg-secondary/5 border border-secondary/15 rounded-lg p-3">
+              <p class="text-xs opacity-80 leading-relaxed">
+                <HighlightedText text={quiz.explanation} />
+              </p>
             </div>
           )}
         </div>
@@ -171,42 +198,40 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
         <span class="text-xs font-bold text-info">
           Q{index + 1}. 穴埋め問題
         </span>
-        {!revealed && (
+        {!allOpen && (
           <span class="text-[0.65rem] opacity-40">
-            ____ の部分を考えてみよう
+            ____ をクリックして正解を開こう
           </span>
         )}
       </div>
       <div class="p-3">
-        <pre class="code-block !my-0 border-l-3 border-info/30">
+        <pre
+          class="code-block !my-0 border-l-3 border-info/30"
+          onClick={handleCodeClick}
+        >
           <code
             class="hljs"
             dangerouslySetInnerHTML={{ __html: renderedCode }}
           />
         </pre>
 
-        {!revealed ? (
-          <button
-            class="btn btn-info btn-outline btn-sm mt-3"
-            onClick={() => setRevealed(true)}
-            aria-expanded="false"
-          >
-            正解を見る
-          </button>
-        ) : (
-          <div class="mt-3 space-y-2">
-            <div class="flex flex-wrap gap-2">
-              {quiz.blanks.map((b, i) => (
-                <span key={i} class="badge badge-info badge-sm gap-1">
-                  <span class="opacity-60">{i + 1}.</span> {b}
-                </span>
-              ))}
-            </div>
-            <div class="bg-info/5 border border-info/15 rounded-lg p-3">
-              <p class="text-xs opacity-80 leading-relaxed">
-                <HighlightedText text={quiz.explanation} />
-              </p>
-            </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          {quiz.blanks.map((b, i) => (
+            <span
+              key={i}
+              class={`badge badge-sm gap-1 ${openSet.has(i) ? "badge-info" : "badge-ghost opacity-50"}`}
+            >
+              <span class="opacity-60">{i + 1}.</span>{" "}
+              {openSet.has(i) ? b : "???"}
+            </span>
+          ))}
+        </div>
+
+        {allOpen && (
+          <div class="mt-2 bg-info/5 border border-info/15 rounded-lg p-3">
+            <p class="text-xs opacity-80 leading-relaxed">
+              <HighlightedText text={quiz.explanation} />
+            </p>
           </div>
         )}
       </div>

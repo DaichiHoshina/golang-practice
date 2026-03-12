@@ -59,6 +59,22 @@
   background: oklch(0.35 0.03 250 / 0.6);
 }
 
+.quiz-blank-revealed {
+  display: inline-block;
+  background: oklch(0.35 0.1 250 / 0.4);
+  border-radius: 0.25rem;
+  padding: 0 0.5rem;
+  color: oklch(0.85 0.12 250);
+  font-weight: 600;
+  border-bottom: 2px solid oklch(0.5 0.15 250 / 0.6);
+  animation: blank-reveal 0.3s ease-out;
+}
+
+@keyframes blank-reveal {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .tooltip {
   --tooltip-text-color: oklch(0.9 0 0);
   --tooltip-color: oklch(0.2 0.01 260);
