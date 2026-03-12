@@ -1,4 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from "hono/jsx/dom";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "hono/jsx/dom";
 import type { Quiz } from "./types";
 import { TOPICS, SECTIONS } from "./data";
 import { HighlightedText } from "./term-highlight";
@@ -116,6 +122,16 @@ export function RandomQuiz({ scores, onScore }: Props) {
   const [openSet, setOpenSet] = useState<Set<number>>(new Set());
   const [streak, setStreak] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    return () => {
+      if (celebrationTimerRef.current)
+        clearTimeout(celebrationTimerRef.current);
+    };
+  }, []);
 
   const handleSectionChange = useCallback((sectionId: string) => {
     setSelectedSection(sectionId);
@@ -207,8 +223,13 @@ export function RandomQuiz({ scores, onScore }: Props) {
       onScore(scoreKey, result);
       if (result === "correct") {
         setStreak((s) => s + 1);
+        if (celebrationTimerRef.current)
+          clearTimeout(celebrationTimerRef.current);
         setShowCelebration(true);
-        setTimeout(() => setShowCelebration(false), 900);
+        celebrationTimerRef.current = setTimeout(
+          () => setShowCelebration(false),
+          900,
+        );
       } else {
         setStreak(0);
       }
