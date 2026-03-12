@@ -1,8 +1,14 @@
-import { useState } from "hono/jsx/dom";
+import { useState, useMemo } from "hono/jsx/dom";
 import type { Topic, Section } from "./types";
 import { TOPICS, TAG_BADGE } from "./data";
+import hljs from "highlight.js/lib/core";
+import go from "highlight.js/lib/languages/go";
+
+hljs.registerLanguage("go", go);
 
 // ─── Code Block ──────────────────────────────────────────
+// Note: dangerouslySetInnerHTML is safe here because input is only
+// hardcoded Go code strings from data.ts, never user input.
 
 function CodeBlock({
   code,
@@ -17,10 +23,17 @@ function CodeBlock({
       ? { text: "✓ Good", color: "text-success" }
       : { text: "✗ Bad", color: "text-error" };
 
+  const highlighted = useMemo(
+    () => hljs.highlight(code, { language: "go" }).value,
+    [code],
+  );
+
   return (
     <div class="my-3">
       <div class={`text-xs font-bold mb-1.5 ${label.color}`}>{label.text}</div>
-      <pre class={`code-block ${cls}`}>{code}</pre>
+      <pre class={`code-block ${cls}`}>
+        <code class="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} />
+      </pre>
     </div>
   );
 }
