@@ -47,6 +47,33 @@
   border-left: 3px solid oklch(0.65 0.2 25);
 }
 
+.quiz-blank {
+  display: inline-block;
+  min-width: 4rem;
+  border-bottom: 2px dashed oklch(0.65 0.15 250);
+  color: oklch(0.65 0.15 250);
+  font-weight: 600;
+  text-align: center;
+  padding: 0 0.25rem;
+  cursor: default;
+}
+
+.quiz-blank-hidden {
+  display: inline-block;
+  min-width: 4rem;
+  background: oklch(0.3 0.02 250 / 0.5);
+  border-radius: 0.25rem;
+  padding: 0 0.5rem;
+  color: transparent;
+  user-select: none;
+  cursor: pointer;
+  border-bottom: 2px dashed oklch(0.5 0.1 250 / 0.6);
+  transition: all 0.2s;
+}
+.quiz-blank-hidden:hover {
+  background: oklch(0.35 0.03 250 / 0.6);
+}
+
 .tooltip {
   --tooltip-text-color: oklch(0.9 0 0);
   --tooltip-color: oklch(0.2 0.01 260);

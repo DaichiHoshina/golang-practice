@@ -8,6 +8,12 @@ export interface InterviewPoint {
   detail?: string;
 }
 
+export interface Quiz {
+  code: string;
+  blanks: string[];
+  explanation: string;
+}
+
 export interface Topic {
   id: string;
   section: string;
@@ -19,6 +25,7 @@ export interface Topic {
   badCode: string;
   goodCode: string;
   interviewPoints: InterviewPoint[];
+  quizzes?: Quiz[];
 }
 
 export interface Section {

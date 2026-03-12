@@ -1,5 +1,5 @@
 import { useState, useMemo } from "hono/jsx/dom";
-import type { Topic, Section, InterviewPoint } from "./types";
+import type { Topic, Section, InterviewPoint, Quiz } from "./types";
 import { TOPICS, TAG_BADGE } from "./data";
 import { HighlightedText } from "./term-highlight";
 import hljs from "highlight.js/lib/core";
@@ -83,6 +83,93 @@ function InterviewBox({ points }: { points: InterviewPoint[] }) {
           <InterviewPointItem key={i} item={p} />
         ))}
       </ul>
+    </div>
+  );
+}
+
+// ─── Quiz Card ───────────────────────────────────────────
+
+const BLANK_MARKER = "____";
+
+function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
+  const [revealed, setRevealed] = useState(false);
+
+  const renderedCode = useMemo(() => {
+    if (revealed) {
+      let result = quiz.code;
+      for (const answer of quiz.blanks) {
+        result = result.replace(BLANK_MARKER, answer);
+      }
+      return hljs.highlight(result, { language: "go" }).value;
+    }
+
+    const parts = quiz.code.split(BLANK_MARKER);
+    let html = "";
+    for (let i = 0; i < parts.length; i++) {
+      html += hljs.highlight(parts[i], { language: "go" }).value;
+      if (i < parts.length - 1) {
+        html += `<span class="quiz-blank-hidden" title="クリックで正解を表示">${BLANK_MARKER}</span>`;
+      }
+    }
+    return html;
+  }, [quiz.code, quiz.blanks, revealed]);
+
+  return (
+    <div class="border border-info/20 rounded-box overflow-hidden">
+      <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
+        <span class="text-xs font-bold text-info">
+          Q{index + 1}. 穴埋め問題
+        </span>
+        {!revealed && (
+          <span class="text-[0.65rem] opacity-40">
+            ____ の部分を考えてみよう
+          </span>
+        )}
+      </div>
+      <div class="p-3">
+        <pre class="code-block !my-0 border-l-3 border-info/30">
+          <code
+            class="hljs"
+            dangerouslySetInnerHTML={{ __html: renderedCode }}
+          />
+        </pre>
+
+        {!revealed ? (
+          <button
+            class="btn btn-info btn-outline btn-sm mt-3"
+            onClick={() => setRevealed(true)}
+          >
+            正解を見る
+          </button>
+        ) : (
+          <div class="mt-3 space-y-2">
+            <div class="flex flex-wrap gap-2">
+              {quiz.blanks.map((b, i) => (
+                <span key={i} class="badge badge-info badge-sm gap-1">
+                  <span class="opacity-60">{i + 1}.</span> {b}
+                </span>
+              ))}
+            </div>
+            <div class="bg-info/5 border border-info/15 rounded-lg p-3">
+              <p class="text-xs opacity-80 leading-relaxed">
+                <HighlightedText text={quiz.explanation} />
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuizSection({ quizzes }: { quizzes: Quiz[] }) {
+  if (!quizzes.length) return null;
+  return (
+    <div class="mt-4 space-y-3">
+      <div class="text-xs font-bold opacity-50">穴埋め問題</div>
+      {quizzes.map((q, i) => (
+        <QuizCard key={i} quiz={q} index={i} />
+      ))}
     </div>
   );
 }
@@ -198,6 +285,11 @@ function TopicCard({
           )}
 
           <InterviewBox points={topic.interviewPoints} />
+
+          {/* Quizzes */}
+          {topic.quizzes && topic.quizzes.length > 0 && (
+            <QuizSection quizzes={topic.quizzes} />
+          )}
 
           {/* Notes */}
           <div>
