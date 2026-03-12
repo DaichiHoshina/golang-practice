@@ -175,6 +175,83 @@ export const GLOSSARY: GlossaryEntry[] = [
     description:
       "パッケージ初期化時に自動実行される特殊関数。引数なし・戻り値なし。テストが困難になるため、可能な限り明示的な初期化関数を使う方が好ましい。",
   },
+
+  // ── 型システム（追加） ──
+  {
+    term: "generics",
+    description:
+      "Go 1.18 で導入された型パラメータ。[T any] や [T comparable] のように制約を指定する。コンテナ型やユーティリティ関数の汎用化に使うが、interface で済む場合は不要。",
+  },
+  {
+    term: "type constraint",
+    description:
+      "generics の型パラメータに課す制約。any（制約なし）、comparable（== 比較可能）、独自の interface 制約を定義できる。~ を使うと underlying type でもマッチする。",
+  },
+
+  // ── 並行処理（追加） ──
+  {
+    term: "sync.RWMutex",
+    description:
+      "読み取りと書き込みを区別するロック。RLock/RUnlock で複数の読み取りを並行許可し、Lock/Unlock で排他的な書き込みを行う。read-heavy なワークロードで Mutex より高スループット。",
+  },
+  {
+    term: "sync.Map",
+    description:
+      "goroutine 安全な map 実装。read-heavy で key が安定しているケースに最適化されている。通常の map + Mutex の方が適切な場合も多いので、benchmark で比較すべき。",
+  },
+  {
+    term: "sync.Once",
+    description:
+      "一度だけ関数を実行する同期プリミティブ。Do(func()) は何度呼んでも最初の1回だけ実行される。シングルトン初期化や遅延初期化に使う。",
+  },
+  {
+    term: "rate limiting",
+    description:
+      "一定時間あたりのリクエスト数を制限する手法。Go では golang.org/x/time/rate の Limiter（トークンバケット）や time.Ticker を使って実装する。",
+  },
+  {
+    term: "graceful shutdown",
+    description:
+      "サーバーを停止する際に処理中のリクエストを完了させてから終了する手法。os.Signal で SIGTERM を受け取り、context.WithTimeout で猶予時間を設定する。",
+  },
+
+  // ── ツールチェイン ──
+  {
+    term: "golangci-lint",
+    description:
+      "Go の静的解析ツールランナー。50以上の linter を統合実行できる。.golangci.yml で有効/無効を制御。CI に組み込むのが標準的。",
+  },
+  {
+    term: "go generate",
+    description:
+      "ソースコード中の //go:generate コメントからコード生成を実行するツール。stringer、mockgen、protoc などと組み合わせて使う。生成結果はリポジトリにコミットするのが慣習。",
+  },
+  {
+    term: "go vet",
+    description:
+      "Go 標準の静的解析ツール。printf フォーマット不一致、到達不能コード、コピー禁止の構造体のコピーなどを検出する。go build とは別に実行が推奨される。",
+  },
+
+  // ── パフォーマンス（追加） ──
+  {
+    term: "strings.Builder",
+    description:
+      "string の連結を効率的に行うための型。内部で []byte バッファを使い、+ 演算子による毎回のメモリ確保を避ける。ループ内での文字列構築に必須。",
+  },
+
+  // ── テスト（追加） ──
+  {
+    term: "testify",
+    description:
+      "Go の人気テストライブラリ。assert（アサーション）、require（失敗時即停止）、mock（モック生成）、suite（テストスイート）の4パッケージを提供する。",
+  },
+
+  // ── 設計（追加） ──
+  {
+    term: "middleware",
+    description:
+      "HTTP ハンドラを wrap して横断的関心事（認証、ログ、リカバリ等）を追加するパターン。func(http.Handler) http.Handler シグネチャが Go の標準的な形式。",
+  },
 ];
 
 // 検索用: 用語 → 説明のマップ
