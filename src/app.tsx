@@ -89,7 +89,7 @@ export function App() {
             ☰
           </button>
           <span class="font-bold text-primary tracking-widest text-sm">GO</span>
-          <span class="text-xs opacity-70 hidden sm:inline">
+          <span class="text-xs opacity-80 hidden sm:inline">
             実務学習ガイド
           </span>
         </div>
@@ -100,11 +100,11 @@ export function App() {
               value={progressPct}
               max={100}
             />
-            <span class="text-xs opacity-70">{progressPct}%</span>
+            <span class="text-xs opacity-80">{progressPct}%</span>
           </div>
         </div>
         <div class="navbar-end">
-          <span class="text-xs opacity-70">
+          <span class="text-xs opacity-80">
             {completedCount}/{TOTAL_TOPICS}
           </span>
         </div>
@@ -150,7 +150,7 @@ export function App() {
               </li>
               {/* Divider */}
               <li class="menu-title mt-1 mb-0">
-                <span class="text-[0.6rem] opacity-70">セクション</span>
+                <span class="text-[0.6rem] opacity-80">セクション</span>
               </li>
               {/* Section items */}
               {SECTIONS.filter((s) => s.id !== "dashboard").map((s) => {
@@ -172,7 +172,7 @@ export function App() {
                       {total > 0 && (
                         <span
                           class={`text-xs ${
-                            done === total ? "text-primary" : "opacity-60"
+                            done === total ? "text-primary" : "opacity-80"
                           }`}
                         >
                           {done}/{total}
@@ -184,7 +184,7 @@ export function App() {
               })}
             </ul>
             <div class="p-3 border-t border-base-300 text-center">
-              <span class="text-xs opacity-65">Backend Engineer Ed.</span>
+              <span class="text-xs opacity-80">Backend Engineer Ed.</span>
             </div>
           </aside>
         )}

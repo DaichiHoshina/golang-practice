@@ -290,7 +290,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
           <span class="text-3xl leading-none mt-1">?</span>
           <div>
             <h1 class="text-xl font-bold">ランダム出題</h1>
-            <p class="text-sm opacity-70 mt-0.5">
+            <p class="text-sm opacity-85 mt-0.5">
               穴埋め問題をランダムに出題。間違えた問題は優先的に再出題。
             </p>
           </div>
@@ -320,7 +320,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
           <div class="flex gap-3 text-xs">
             <span class="text-success font-bold">{correctCount} 正解</span>
             <span class="text-error font-bold">{wrongCount} 不正解</span>
-            <span class="opacity-70">{total - answered} 未回答</span>
+            <span class="opacity-85">{total - answered} 未回答</span>
           </div>
           <progress
             class="progress progress-info flex-1 h-1.5"
@@ -328,7 +328,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
             max={100}
           />
           <button
-            class="btn btn-ghost btn-xs opacity-60"
+            class="btn btn-ghost btn-xs opacity-80"
             onClick={handleReshuffle}
             aria-label="シャッフル"
           >
@@ -352,7 +352,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">
             <span class="badge badge-info badge-sm">{current.topicTitle}</span>
-            <span class="text-xs opacity-70">
+            <span class="text-xs opacity-85">
               {currentIdx + 1} / {queue.length}
             </span>
           </div>
@@ -392,9 +392,9 @@ export function RandomQuiz({ scores, onScore }: Props) {
           {allOpen && (
             <div class="mt-3 space-y-3">
               <div
-                class={`border rounded-lg p-3 ${qType === "concept" ? "bg-secondary/5 border-secondary/15" : "bg-info/5 border-info/15"}`}
+                class={`border rounded-lg p-3 ${qType === "concept" ? "bg-secondary/10 border-secondary/25" : "bg-info/10 border-info/25"}`}
               >
-                <p class="text-xs opacity-85 leading-relaxed">
+                <p class="text-xs opacity-90 leading-relaxed">
                   <HighlightedText text={current.quiz.explanation} />
                 </p>
               </div>
@@ -405,7 +405,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
                   onClick={() => handleResult("correct")}
                 >
                   わかった
-                  <kbd class="kbd kbd-xs ml-1 opacity-60 hidden sm:inline">
+                  <kbd class="kbd kbd-xs ml-1 opacity-80 hidden sm:inline">
                     →
                   </kbd>
                 </button>
@@ -414,7 +414,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
                   onClick={() => handleResult("wrong")}
                 >
                   もう一度
-                  <kbd class="kbd kbd-xs ml-1 opacity-60 hidden sm:inline">
+                  <kbd class="kbd kbd-xs ml-1 opacity-80 hidden sm:inline">
                     ←
                   </kbd>
                 </button>
@@ -425,7 +425,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
       </div>
 
       {/* Keyboard hint */}
-      <div class="text-center text-xs opacity-65 hidden sm:block">
+      <div class="text-center text-xs opacity-80 hidden sm:block">
         <kbd class="kbd kbd-xs">Space</kbd> 次のブランクを開く{" "}
         <kbd class="kbd kbd-xs">→</kbd> わかった <kbd class="kbd kbd-xs">←</kbd>{" "}
         もう一度
@@ -456,7 +456,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
               <div class="card-body p-4">
                 <div class="flex items-center gap-2 mb-2">
                   <span class="text-lg">{milestone.icon}</span>
-                  <span class="text-xs font-bold opacity-70">正答率</span>
+                  <span class="text-xs font-bold opacity-85">正答率</span>
                 </div>
                 <div class="flex items-center gap-3">
                   <div
@@ -465,7 +465,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
                   >
                     {pct}%
                   </div>
-                  <div class="text-xs opacity-75 leading-relaxed">
+                  <div class="text-xs opacity-90 leading-relaxed">
                     <p class="font-semibold text-primary/80">{milestone.msg}</p>
                     <p class="mt-0.5">
                       {answered} 問回答 / 全 {total} 問

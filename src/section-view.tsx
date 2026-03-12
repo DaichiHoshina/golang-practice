@@ -46,7 +46,7 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
   const hasDetail = !!item.detail;
 
   return (
-    <li class="text-xs opacity-85 leading-relaxed">
+    <li class="text-xs opacity-90 leading-relaxed">
       <div
         class={`flex gap-2 ${hasDetail ? "cursor-pointer hover:opacity-100 transition-opacity rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary/60 outline-none" : ""}`}
         onClick={() => hasDetail && setOpen((o: boolean) => !o)}
@@ -63,14 +63,14 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
         <span class="flex-1">
           <HighlightedText text={item.point} />
           {hasDetail && (
-            <span class="ml-1.5 text-secondary/60 text-[0.65rem]">
+            <span class="ml-1.5 text-secondary/80 text-[0.65rem]">
               {open ? "▲" : "▼ 詳細"}
             </span>
           )}
         </span>
       </div>
       {open && item.detail && (
-        <div class="ml-5 mt-1.5 pl-3 border-l-2 border-secondary/20 text-xs opacity-80 leading-relaxed">
+        <div class="ml-5 mt-1.5 pl-3 border-l-2 border-secondary/30 text-xs opacity-90 leading-relaxed">
           <HighlightedText text={item.detail} />
         </div>
       )}
@@ -82,7 +82,7 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
 
 function InterviewBox({ points }: { points: InterviewPoint[] }) {
   return (
-    <div class="mt-4 bg-secondary/5 border border-secondary/20 rounded-box p-4">
+    <div class="mt-4 bg-secondary/10 border border-secondary/30 rounded-box p-4">
       <div class="text-xs font-bold text-secondary mb-2.5">
         ◎ 面接で答えるときのポイント
       </div>
@@ -158,13 +158,13 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
   // ── Concept type ──
   if (qType === "concept") {
     return (
-      <div class="border border-secondary/20 rounded-box overflow-hidden">
-        <div class="bg-secondary/5 px-4 py-2 flex items-center justify-between">
+      <div class="border border-secondary/30 rounded-box overflow-hidden">
+        <div class="bg-secondary/10 px-4 py-2 flex items-center justify-between">
           <span class="text-xs font-bold text-secondary">
             Q{index + 1}. 理論問題
           </span>
           {!allOpen && (
-            <span class="text-[0.65rem] opacity-60">
+            <span class="text-[0.65rem] opacity-80">
               考えてから答えを見よう
             </span>
           )}
@@ -191,8 +191,8 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
             )}
           </div>
           {allOpen && (
-            <div class="mt-3 bg-secondary/5 border border-secondary/15 rounded-lg p-3">
-              <p class="text-xs opacity-85 leading-relaxed">
+            <div class="mt-3 bg-secondary/10 border border-secondary/25 rounded-lg p-3">
+              <p class="text-xs opacity-90 leading-relaxed">
                 <HighlightedText text={quiz.explanation} />
               </p>
             </div>
@@ -204,8 +204,8 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
 
   // ── Text fill-in-blank type (default) ──
   return (
-    <div class="border border-info/20 rounded-box overflow-hidden">
-      <div class="bg-info/5 px-4 py-2 flex items-center justify-between">
+    <div class="border border-info/30 rounded-box overflow-hidden">
+      <div class="bg-info/10 px-4 py-2 flex items-center justify-between">
         <span class="text-xs font-bold text-info">
           Q{index + 1}. 穴埋め問題
         </span>
@@ -225,8 +225,8 @@ function QuizCard({ quiz, index }: { quiz: Quiz; index: number }) {
           />
         </p>
         {allOpen && (
-          <div class="mt-3 bg-info/5 border border-info/15 rounded-lg p-3">
-            <p class="text-xs opacity-85 leading-relaxed">
+          <div class="mt-3 bg-info/10 border border-info/25 rounded-lg p-3">
+            <p class="text-xs opacity-90 leading-relaxed">
               <HighlightedText text={quiz.explanation} />
             </p>
           </div>
@@ -240,7 +240,7 @@ function QuizSection({ quizzes }: { quizzes: Quiz[] }) {
   if (!quizzes.length) return null;
   return (
     <div class="mt-4 space-y-3">
-      <div class="text-xs font-bold opacity-70">確認問題</div>
+      <div class="text-xs font-bold opacity-85">確認問題</div>
       {quizzes.map((q, i) => (
         <QuizCard key={i} quiz={q} index={i} />
       ))}
@@ -257,13 +257,13 @@ function TradeoffBox({
 }) {
   if (!tradeoffs.length) return null;
   return (
-    <div class="mt-4 bg-warning/5 border border-warning/20 rounded-box p-4">
+    <div class="mt-4 bg-warning/10 border border-warning/30 rounded-box p-4">
       <div class="text-xs font-bold mb-2.5" style="color: oklch(0.52 0.14 80)">
         ⇄ トレードオフ
       </div>
       <div class="space-y-2">
         {tradeoffs.map((t, i) => (
-          <p key={i} class="text-xs opacity-85 leading-relaxed">
+          <p key={i} class="text-xs opacity-90 leading-relaxed">
             <span class="font-semibold" style="color: oklch(0.52 0.14 80)">
               {t.title}:{" "}
             </span>
@@ -295,7 +295,7 @@ function RelatedTopics({
 
   return (
     <div>
-      <p class="text-xs font-semibold opacity-70 mb-1.5">関連トピック</p>
+      <p class="text-xs font-semibold opacity-85 mb-1.5">関連トピック</p>
       <div class="flex flex-wrap gap-1.5">
         {sameSection.map((t) => (
           <button
@@ -379,11 +379,11 @@ function TopicCard({
               </h3>
               <span class={`badge badge-sm ${badgeCls}`}>{topic.tag}</span>
             </div>
-            <p class="text-xs opacity-75 mt-1.5 leading-relaxed">
+            <p class="text-xs opacity-90 mt-1.5 leading-relaxed">
               <HighlightedText text={topic.summary} />
             </p>
           </div>
-          <span class="text-xs opacity-70 shrink-0 mt-1">
+          <span class="text-xs opacity-85 shrink-0 mt-1">
             {expanded ? "▲" : "▼"}
           </span>
         </div>
@@ -394,10 +394,10 @@ function TopicCard({
         <div class="card-body pt-0 border-t border-base-300 space-y-4">
           {/* Why */}
           <div>
-            <p class="text-xs font-semibold opacity-75 mb-1">
+            <p class="text-xs font-semibold opacity-85 mb-1">
               なぜそうするのか
             </p>
-            <p class="text-xs opacity-85 leading-relaxed">
+            <p class="text-xs opacity-90 leading-relaxed">
               <HighlightedText text={topic.why} />
             </p>
           </div>
@@ -426,7 +426,7 @@ function TopicCard({
           <div>
             <label
               for={`note-${topic.id}`}
-              class="text-xs font-semibold opacity-75 mb-1.5 block"
+              class="text-xs font-semibold opacity-85 mb-1.5 block"
             >
               学習メモ
             </label>
@@ -478,7 +478,7 @@ export function SectionView({
           <span class="text-3xl leading-none mt-1">{section.icon}</span>
           <div>
             <h1 class="text-xl font-bold">{section.title}</h1>
-            <p class="text-sm opacity-70 mt-0.5">{section.description}</p>
+            <p class="text-sm opacity-85 mt-0.5">{section.description}</p>
           </div>
         </div>
         <div class="flex items-center gap-3 mt-4">
@@ -487,7 +487,7 @@ export function SectionView({
             value={topics.length > 0 ? (doneCount / topics.length) * 100 : 0}
             max={100}
           />
-          <span class="text-xs opacity-70 shrink-0">
+          <span class="text-xs opacity-85 shrink-0">
             {doneCount}/{topics.length} 完了
           </span>
         </div>
