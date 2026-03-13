@@ -6,10 +6,10 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "go-study-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "160d27fb-6893-4e38-81b4-ae562f1b519c"
 
 [vars]
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = "https://go-study-app.pages.dev"
 
 # Secrets (set via `wrangler secret put`):
 # GITHUB_CLIENT_ID
