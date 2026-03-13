@@ -4,6 +4,7 @@ import { Dashboard } from "./dashboard";
 import { SectionView } from "./section-view";
 import { RandomQuiz } from "./random-quiz";
 import type { QuizScores } from "./random-quiz";
+import { HomeIcon, DiceIcon } from "./icons";
 
 function useLocalStorage<T>(
   key: string,
@@ -148,7 +149,7 @@ export function App() {
                   onClick={() => navigate("dashboard")}
                 >
                   <span class="flex items-center gap-2">
-                    <span class="opacity-70 w-4 text-center text-xs">~</span>
+                    <HomeIcon size={13} class="opacity-70 shrink-0" />
                     <span>Dashboard</span>
                   </span>
                 </button>
@@ -160,7 +161,7 @@ export function App() {
                   onClick={() => navigate("random-quiz")}
                 >
                   <span class="flex items-center gap-2">
-                    <span class="opacity-70 w-4 text-center text-xs">?</span>
+                    <DiceIcon size={13} class="opacity-70 shrink-0" />
                     <span>ランダム出題</span>
                   </span>
                 </button>

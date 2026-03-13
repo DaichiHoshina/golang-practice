@@ -8,6 +8,7 @@ import {
 import type { Quiz } from "./types";
 import { TOPICS, SECTIONS } from "./data";
 import { HighlightedText } from "./term-highlight";
+import { DiceIcon, ShuffleIcon, CheckIcon, RefreshCwIcon } from "./icons";
 
 // ─── Collect all quizzes with topic metadata ─────────────
 
@@ -297,7 +298,7 @@ export function RandomQuiz({ scores, onScore }: Props) {
       {/* Header */}
       <div>
         <div class="flex items-start gap-3">
-          <span class="text-3xl leading-none mt-1">?</span>
+          <DiceIcon size={28} class="shrink-0 mt-1 opacity-80" />
           <div>
             <h1 class="text-xl font-bold">ランダム出題</h1>
             <p class="text-sm opacity-85 mt-0.5">
@@ -338,10 +339,11 @@ export function RandomQuiz({ scores, onScore }: Props) {
             max={100}
           />
           <button
-            class="btn btn-ghost btn-xs opacity-80"
+            class="btn btn-ghost btn-xs opacity-80 gap-1"
             onClick={handleReshuffle}
             aria-label="シャッフル"
           >
+            <ShuffleIcon size={11} />
             シャッフル
           </button>
         </div>
@@ -411,20 +413,22 @@ export function RandomQuiz({ scores, onScore }: Props) {
 
               <div class="flex gap-2 pt-1">
                 <button
-                  class="btn btn-success btn-sm flex-1"
+                  class="btn btn-success btn-sm flex-1 gap-1.5"
                   onClick={() => handleResult("correct")}
                 >
+                  <CheckIcon size={14} />
                   わかった
-                  <kbd class="kbd kbd-xs ml-1 opacity-80 hidden sm:inline">
+                  <kbd class="kbd kbd-xs ml-0.5 opacity-80 hidden sm:inline">
                     →
                   </kbd>
                 </button>
                 <button
-                  class="btn btn-error btn-outline btn-sm flex-1"
+                  class="btn btn-error btn-outline btn-sm flex-1 gap-1.5"
                   onClick={() => handleResult("wrong")}
                 >
+                  <RefreshCwIcon size={13} />
                   もう一度
-                  <kbd class="kbd kbd-xs ml-1 opacity-80 hidden sm:inline">
+                  <kbd class="kbd kbd-xs ml-0.5 opacity-80 hidden sm:inline">
                     ←
                   </kbd>
                 </button>

@@ -2,6 +2,13 @@ import { useState, useMemo } from "hono/jsx/dom";
 import type { Topic, Section, InterviewPoint, Quiz } from "./types";
 import { TOPICS, SECTIONS, TAG_BADGE } from "./data";
 import { HighlightedText } from "./term-highlight";
+import {
+  ChevronUpIcon,
+  ChevronDownIcon,
+  MessageSquareIcon,
+  ArrowLeftRightIcon,
+  PencilIcon,
+} from "./icons";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
 
@@ -64,8 +71,13 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
         <span class="flex-1">
           <HighlightedText text={item.point} />
           {hasDetail && (
-            <span class="ml-1.5 text-secondary/80 text-[0.65rem]">
-              {open ? "▲" : "▼ 詳細"}
+            <span class="ml-1.5 text-secondary/70 inline-flex items-center gap-0.5 text-[0.65rem]">
+              {open ? (
+                <ChevronUpIcon size={10} />
+              ) : (
+                <ChevronDownIcon size={10} />
+              )}
+              {!open && "詳細"}
             </span>
           )}
         </span>
@@ -84,8 +96,9 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
 function InterviewBox({ points }: { points: InterviewPoint[] }) {
   return (
     <div class="mt-4 bg-secondary/10 border border-secondary/30 rounded-box p-4">
-      <div class="text-xs font-bold text-secondary mb-2.5">
-        ◎ 面接で答えるときのポイント
+      <div class="text-xs font-bold text-secondary mb-2.5 flex items-center gap-1.5">
+        <MessageSquareIcon size={11} />
+        面接で答えるときのポイント
       </div>
       <ul class="space-y-1.5">
         {points.map((p, i) => (
@@ -259,8 +272,12 @@ function TradeoffBox({
   if (!tradeoffs.length) return null;
   return (
     <div class="mt-4 bg-warning/10 border border-warning/30 rounded-box p-4">
-      <div class="text-xs font-bold mb-2.5" style="color: oklch(0.52 0.14 80)">
-        ⇄ トレードオフ
+      <div
+        class="text-xs font-bold mb-2.5 flex items-center gap-1.5"
+        style="color: oklch(0.52 0.14 80)"
+      >
+        <ArrowLeftRightIcon size={11} />
+        トレードオフ
       </div>
       <div class="space-y-2">
         {tradeoffs.map((t, i) => (
@@ -380,8 +397,12 @@ function TopicCard({
               <HighlightedText text={topic.summary} />
             </p>
           </div>
-          <span class="text-xs opacity-85 shrink-0 mt-1">
-            {expanded ? "▲" : "▼"}
+          <span class="opacity-60 shrink-0 mt-0.5">
+            {expanded ? (
+              <ChevronUpIcon size={14} />
+            ) : (
+              <ChevronDownIcon size={14} />
+            )}
           </span>
         </div>
       </div>
@@ -423,8 +444,9 @@ function TopicCard({
           <div>
             <label
               for={`note-${topic.id}`}
-              class="text-xs font-semibold opacity-85 mb-1.5 block"
+              class="text-xs font-semibold opacity-85 mb-1.5 flex items-center gap-1"
             >
+              <PencilIcon size={10} />
               学習メモ
             </label>
             <textarea

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, createPortal } from "hono/jsx/dom";
 import { GLOSSARY } from "./glossary";
+import { XIcon } from "./icons";
 
 // ─── Term detection setup ─────────────────────────────────
 
@@ -89,7 +90,7 @@ function TermPopup({
             }}
             aria-label="閉じる"
           >
-            ✕
+            <XIcon size={13} />
           </button>
         </div>
         <p class="text-xs opacity-90 leading-relaxed">{info.desc}</p>

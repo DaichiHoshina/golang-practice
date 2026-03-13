@@ -1,4 +1,12 @@
 import { SECTIONS, TOPICS, TOTAL_TOPICS, RECOMMENDED } from "./data";
+import {
+  StarIcon,
+  ChevronRightIcon,
+  CheckCircleIcon,
+  TrophyIcon,
+  FileTextIcon,
+  CircleDotIcon,
+} from "./icons";
 
 interface Props {
   completed: Record<string, boolean>;
@@ -89,8 +97,9 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
       {/* Today's Recommendation */}
       <div class="card bg-primary/10 border border-primary/30">
         <div class="card-body p-5">
-          <div class="text-xs font-bold text-primary mb-2">
-            ★ 今日のおすすめ学習
+          <div class="text-xs font-bold text-primary mb-2 flex items-center gap-1">
+            <StarIcon size={11} />
+            今日のおすすめ学習
           </div>
           <h3 class="text-sm font-semibold">{recTopic?.title}</h3>
           <p class="text-xs opacity-90 mt-1">{todayRec.reason}</p>
@@ -99,10 +108,11 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
           </p>
           <div class="card-actions mt-3">
             <button
-              class="btn btn-primary btn-sm btn-outline"
+              class="btn btn-primary btn-sm btn-outline gap-1.5"
               onClick={() => recSection && onNavigate(recSection.id)}
             >
-              学習を始める →
+              学習を始める
+              <ChevronRightIcon size={13} />
             </button>
           </div>
         </div>
@@ -151,21 +161,33 @@ export function Dashboard({ completed, notes, onNavigate }: Props) {
       <div class="stats stats-horizontal bg-base-200 w-full">
         <div class="stat place-items-center">
           <div class="stat-value text-2xl text-primary">{completedCount}</div>
-          <div class="stat-desc">完了トピック</div>
+          <div class="stat-desc flex items-center gap-1">
+            <CheckCircleIcon size={10} class="text-primary opacity-60" />
+            完了トピック
+          </div>
         </div>
         <div class="stat place-items-center">
           <div class="stat-value text-2xl text-success">
             {completedSections}
           </div>
-          <div class="stat-desc">制覇セクション</div>
+          <div class="stat-desc flex items-center gap-1">
+            <TrophyIcon size={10} class="text-success opacity-60" />
+            制覇セクション
+          </div>
         </div>
         <div class="stat place-items-center">
           <div class="stat-value text-2xl">{notesCount}</div>
-          <div class="stat-desc">メモあり</div>
+          <div class="stat-desc flex items-center gap-1">
+            <FileTextIcon size={10} class="opacity-50" />
+            メモあり
+          </div>
         </div>
         <div class="stat place-items-center">
           <div class="stat-value text-2xl">{TOTAL_TOPICS - completedCount}</div>
-          <div class="stat-desc">残り</div>
+          <div class="stat-desc flex items-center gap-1">
+            <CircleDotIcon size={10} class="opacity-50" />
+            残り
+          </div>
         </div>
       </div>
     </div>
