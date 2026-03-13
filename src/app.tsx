@@ -305,7 +305,10 @@ export function App() {
 
         {/* Main Content */}
         <main class="flex-1 overflow-y-auto">
-          <div class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          <div
+            key={currentSection}
+            class="page-enter max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8"
+          >
             {currentSection === "dashboard" ? (
               <Dashboard
                 completed={completed}

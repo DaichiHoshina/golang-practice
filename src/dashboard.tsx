@@ -1,4 +1,5 @@
 import { SECTIONS, TOPICS, TOTAL_TOPICS, RECOMMENDED } from "./data";
+import { DataManager } from "./data-manager";
 import {
   StarIcon,
   ChevronRightIcon,
@@ -304,6 +305,9 @@ export function Dashboard({
           </div>
         </div>
       )}
+
+      {/* Data Manager */}
+      <DataManager />
 
       {/* Stats */}
       <div class="stats stats-horizontal bg-base-200 w-full">

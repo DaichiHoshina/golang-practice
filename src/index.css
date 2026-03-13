@@ -149,6 +149,15 @@
   pointer-events: none;
 }
 
+/* Page transition */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.18s ease-out;
+}
+
 /* Milestone card glow — matches Go teal primary */
 @keyframes milestone-glow {
   0%, 100% { box-shadow: 0 0 0 0 oklch(0.54 0.14 206 / 0); }
