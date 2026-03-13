@@ -52,6 +52,7 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
         onClick={() => hasDetail && setOpen((o: boolean) => !o)}
         role={hasDetail ? "button" : undefined}
         tabIndex={hasDetail ? 0 : undefined}
+        aria-expanded={hasDetail ? open : undefined}
         onKeyDown={(e: KeyboardEvent) => {
           if (hasDetail && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
@@ -335,11 +336,7 @@ function TopicCard({
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
 
   return (
-    <div
-      class={`card bg-base-200 border border-base-300 transition-all ${
-        completed ? "opacity-60" : ""
-      }`}
-    >
+    <div class="card bg-base-200 border border-base-300 transition-all">
       {/* Header */}
       <div
         class="card-body p-4 cursor-pointer rounded-t-box focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/60 outline-none"

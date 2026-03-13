@@ -280,7 +280,17 @@ export function RandomQuiz({ scores, onScore }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [revealNext, allOpen, handleResult]);
 
-  if (!current) return null;
+  if (!current) {
+    return (
+      <div class="flex flex-col items-center justify-center py-20 gap-4 text-center">
+        <span class="text-5xl">📭</span>
+        <p class="text-base font-semibold">
+          このセクションにはクイズがありません
+        </p>
+        <p class="text-sm opacity-80">別のセクションを選択してください</p>
+      </div>
+    );
+  }
 
   return (
     <div class="space-y-5">

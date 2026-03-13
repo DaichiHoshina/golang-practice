@@ -82,11 +82,28 @@ export function App() {
       <div class="navbar bg-base-200 border-b border-base-300 px-4 min-h-12">
         <div class="navbar-start gap-3">
           <button
-            class="btn btn-ghost btn-sm btn-square"
+            class="btn btn-ghost btn-sm"
+            style="min-width:44px;min-height:44px;"
             onClick={() => setSidebarOpen((o: boolean) => !o)}
             aria-label="サイドバーを切り替え"
+            aria-expanded={sidebarOpen}
           >
-            ☰
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
           </button>
           <span class="font-bold text-primary tracking-widest text-sm">GO</span>
           <span class="text-xs opacity-80 hidden sm:inline">
