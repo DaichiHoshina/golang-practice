@@ -52,7 +52,7 @@ function TermPopup({
       spaceBelow > 160
         ? info.anchorRect.bottom + 6
         : info.anchorRect.top - 6 - 150; // position above if not enough space
-    style = `position:fixed;left:${left}px;top:${top}px;width:${popupWidth}px;`;
+    style = `left:${left}px;top:${top}px;width:${popupWidth}px;`;
   }
 
   return (
@@ -70,7 +70,7 @@ function TermPopup({
         class={
           isMobile
             ? "fixed bottom-0 left-0 right-0 z-50 bg-base-100 border-t border-base-300 rounded-t-2xl px-5 py-4 shadow-2xl popup-slide-up"
-            : "z-50 bg-base-100 border border-base-300 rounded-xl shadow-2xl px-4 py-3 popup-fade-in"
+            : "fixed z-50 bg-base-100 border border-base-300 rounded-xl shadow-2xl px-4 py-3 popup-fade-in"
         }
         style={style}
         onClick={(e: Event) => e.stopPropagation()}
