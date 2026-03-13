@@ -13,11 +13,13 @@
     "hono": "^4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260312.1",
     "@tailwindcss/vite": "^4",
     "daisyui": "^5",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^6",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "wrangler": "^4.72.0"
   }
 }

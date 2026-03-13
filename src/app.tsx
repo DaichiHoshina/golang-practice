@@ -15,6 +15,7 @@ import {
 import { DailyChallenge } from "./daily-challenge";
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
+import { SyncButton } from "./sync-ui";
 
 function useLocalStorage<T>(
   key: string,
@@ -163,6 +164,7 @@ export function App() {
           </div>
         </div>
         <div class="navbar-end gap-1">
+          <SyncButton onPullComplete={() => {}} />
           <button
             class="btn btn-ghost btn-sm btn-square"
             onClick={() => setSearchOpen(true)}
