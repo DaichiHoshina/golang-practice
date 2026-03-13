@@ -5,7 +5,14 @@ import { SectionView } from "./section-view";
 import { RandomQuiz } from "./random-quiz";
 import type { QuizScores } from "./random-quiz";
 import { SearchModal } from "./search";
-import { HomeIcon, DiceIcon, SearchIcon, BookmarkIcon } from "./icons";
+import {
+  HomeIcon,
+  DiceIcon,
+  SearchIcon,
+  BookmarkIcon,
+  CalendarIcon,
+} from "./icons";
+import { DailyChallenge } from "./daily-challenge";
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
 
@@ -208,6 +215,18 @@ export function App() {
                   </span>
                 </button>
               </li>
+              {/* Daily Challenge */}
+              <li>
+                <button
+                  class={`flex justify-between w-full ${currentSection === "daily-challenge" ? "active" : ""}`}
+                  onClick={() => navigate("daily-challenge")}
+                >
+                  <span class="flex items-center gap-2">
+                    <CalendarIcon size={13} class="opacity-70 shrink-0" />
+                    <span>今日のチャレンジ</span>
+                  </span>
+                </button>
+              </li>
               {/* Bookmarks */}
               {Object.keys(bookmarks).some((id) => bookmarks[id]) && (
                 <>
@@ -300,6 +319,17 @@ export function App() {
                 scores={quizScores}
                 srsData={srsData}
                 onScore={updateQuizScore}
+              />
+            ) : currentSection === "daily-challenge" ? (
+              <DailyChallenge
+                onComplete={(correct, total) => {
+                  // Record daily challenge activity in study log
+                  for (let i = 0; i < total; i++) {
+                    setStudyLog((prev: StudyLog) =>
+                      recordActivity(prev, i < correct ? "correct" : "wrong"),
+                    );
+                  }
+                }}
               />
             ) : activeSection ? (
               <SectionView

@@ -10,9 +10,17 @@ export interface InterviewPoint {
 
 export interface Quiz {
   type?: "text" | "concept"; // "text" = text fill-in, "concept" = theory Q&A
+  difficulty?: "easy" | "medium" | "hard"; // optional; auto-derived if absent
   code: string; // question text or code with ____
   blanks: string[];
   explanation: string;
+}
+
+/** Derive difficulty from quiz when not explicitly set */
+export function getQuizDifficulty(q: Quiz): "easy" | "medium" | "hard" {
+  if (q.difficulty) return q.difficulty;
+  if (q.type === "concept") return "hard";
+  return q.blanks.length <= 1 ? "easy" : "medium";
 }
 
 export interface Topic {

@@ -6,9 +6,16 @@ import {
   useRef,
 } from "hono/jsx/dom";
 import type { Quiz } from "./types";
+import { getQuizDifficulty } from "./types";
 import { TOPICS, SECTIONS } from "./data";
 import { HighlightedText } from "./term-highlight";
-import { DiceIcon, ShuffleIcon, CheckIcon, RefreshCwIcon } from "./icons";
+import {
+  DiceIcon,
+  ShuffleIcon,
+  CheckIcon,
+  RefreshCwIcon,
+  TimerIcon,
+} from "./icons";
 import { isDue, countDue } from "./srs";
 
 // ─── Collect all quizzes with topic metadata ─────────────
@@ -48,10 +55,17 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function getPool(sectionId: string): QuizWithMeta[] {
-  return sectionId === "all"
-    ? ALL_QUIZZES
-    : ALL_QUIZZES.filter((q) => q.sectionId === sectionId);
+type Difficulty = "all" | "easy" | "medium" | "hard";
+
+function getPool(sectionId: string, difficulty: Difficulty): QuizWithMeta[] {
+  let pool =
+    sectionId === "all"
+      ? ALL_QUIZZES
+      : ALL_QUIZZES.filter((q) => q.sectionId === sectionId);
+  if (difficulty !== "all") {
+    pool = pool.filter((q) => getQuizDifficulty(q.quiz) === difficulty);
+  }
+  return pool;
 }
 
 // ─── Types ───────────────────────────────────────────────
@@ -116,8 +130,12 @@ function CelebrationBurst() {
   );
 }
 
+const TIMER_SECONDS = 30;
+
 export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const [selectedSection, setSelectedSection] = useState<string>("all");
+  const [selectedDifficulty, setSelectedDifficulty] =
+    useState<Difficulty>("all");
   const [queue, setQueue] = useState<QuizWithMeta[]>(() =>
     shuffle(ALL_QUIZZES),
   );
@@ -125,6 +143,8 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const [openSet, setOpenSet] = useState<Set<number>>(new Set());
   const [streak, setStreak] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [timerMode, setTimerMode] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(TIMER_SECONDS);
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -136,10 +156,36 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
     };
   }, []);
 
+  // Timer countdown
+  useEffect(() => {
+    if (!timerMode) return;
+    setTimeLeft(TIMER_SECONDS);
+  }, [currentIdx, timerMode]);
+
+  useEffect(() => {
+    if (!timerMode || timeLeft <= 0) return;
+    const id = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [timerMode, timeLeft]);
+
+  // When timer hits 0, reveal all blanks
+  useEffect(() => {
+    if (timerMode && timeLeft === 0 && currentIdx < queue.length) {
+      const current = queue[currentIdx];
+      if (current) {
+        setOpenSet(
+          new Set(
+            Array.from({ length: current.quiz.blanks.length }, (_, i) => i),
+          ),
+        );
+      }
+    }
+  }, [timerMode, timeLeft, currentIdx, queue]);
+
   /** Build queue with SRS-due items first, then wrong, then rest */
   const buildQueue = useCallback(
-    (sectionId: string) => {
-      const pool = getPool(sectionId);
+    (sectionId: string, difficulty: Difficulty) => {
+      const pool = getPool(sectionId, difficulty);
       const due: QuizWithMeta[] = [];
       const rest: QuizWithMeta[] = [];
       for (const q of pool) {
@@ -159,15 +205,28 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const handleSectionChange = useCallback(
     (sectionId: string) => {
       setSelectedSection(sectionId);
-      setQueue(buildQueue(sectionId));
+      setQueue(buildQueue(sectionId, selectedDifficulty));
       setCurrentIdx(0);
       setOpenSet(new Set());
     },
-    [buildQueue],
+    [buildQueue, selectedDifficulty],
+  );
+
+  const handleDifficultyChange = useCallback(
+    (difficulty: Difficulty) => {
+      setSelectedDifficulty(difficulty);
+      setQueue(buildQueue(selectedSection, difficulty));
+      setCurrentIdx(0);
+      setOpenSet(new Set());
+    },
+    [buildQueue, selectedSection],
   );
 
   const current = queue[currentIdx];
-  const pool = useMemo(() => getPool(selectedSection), [selectedSection]);
+  const pool = useMemo(
+    () => getPool(selectedSection, selectedDifficulty),
+    [selectedSection, selectedDifficulty],
+  );
   const total = pool.length;
 
   const filteredScoreEntries = useMemo(() => {
@@ -279,10 +338,10 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   );
 
   const handleReshuffle = useCallback(() => {
-    setQueue(buildQueue(selectedSection));
+    setQueue(buildQueue(selectedSection, selectedDifficulty));
     setCurrentIdx(0);
     setOpenSet(new Set());
-  }, [selectedSection, buildQueue]);
+  }, [selectedSection, selectedDifficulty, buildQueue]);
 
   // ─── Keyboard shortcuts ────────────────────────────────
   useEffect(() => {
@@ -322,19 +381,29 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
     <div class="space-y-5">
       {/* Header */}
       <div>
-        <div class="flex items-start gap-3">
-          <DiceIcon size={28} class="shrink-0 mt-1 opacity-80" />
-          <div>
-            <h1 class="text-xl font-bold">ランダム出題</h1>
-            <p class="text-sm opacity-85 mt-0.5">
-              穴埋め問題をランダムに出題。SRS復習予定の問題を優先。
-              {countDue(srsData) > 0 && (
-                <span class="badge badge-warning badge-xs ml-1.5 align-middle">
-                  復習 {countDue(srsData)}件
-                </span>
-              )}
-            </p>
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <DiceIcon size={28} class="shrink-0 mt-1 opacity-80" />
+            <div>
+              <h1 class="text-xl font-bold">ランダム出題</h1>
+              <p class="text-sm opacity-85 mt-0.5">
+                穴埋め問題をランダムに出題。SRS復習予定の問題を優先。
+                {countDue(srsData) > 0 && (
+                  <span class="badge badge-warning badge-xs ml-1.5 align-middle">
+                    復習 {countDue(srsData)}件
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
+          <button
+            class={`btn btn-sm gap-1.5 shrink-0 ${timerMode ? "btn-warning" : "btn-ghost opacity-80"}`}
+            onClick={() => setTimerMode((v) => !v)}
+            title="タイマーモード (30秒)"
+          >
+            <TimerIcon size={13} />
+            {timerMode ? "タイマーON" : "タイマー"}
+          </button>
         </div>
 
         {/* Section filter */}
@@ -352,6 +421,36 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
               onClick={() => handleSectionChange(s.id)}
             >
               {s.icon} {s.title} ({s.count})
+            </button>
+          ))}
+        </div>
+
+        {/* Difficulty filter */}
+        <div class="flex gap-1.5 mt-2">
+          {(
+            [
+              { id: "all", label: "全難易度" },
+              { id: "easy", label: "易" },
+              { id: "medium", label: "中" },
+              { id: "hard", label: "難" },
+            ] as { id: Difficulty; label: string }[]
+          ).map((d) => (
+            <button
+              key={d.id}
+              class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
+                selectedDifficulty === d.id
+                  ? d.id === "easy"
+                    ? "badge-success"
+                    : d.id === "medium"
+                      ? "badge-warning"
+                      : d.id === "hard"
+                        ? "badge-error"
+                        : "badge-neutral"
+                  : "badge-ghost hover:badge-neutral"
+              }`}
+              onClick={() => handleDifficultyChange(d.id)}
+            >
+              {d.label}
             </button>
           ))}
         </div>
@@ -394,10 +493,26 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">
             <span class="badge badge-info badge-sm">{current.topicTitle}</span>
-            <span class="text-xs opacity-85">
-              {currentIdx + 1} / {queue.length}
-            </span>
+            <div class="flex items-center gap-2">
+              {timerMode && (
+                <span
+                  class={`text-xs font-mono font-bold ${timeLeft <= 10 ? "text-error" : timeLeft <= 20 ? "text-warning" : "text-success"}`}
+                >
+                  {timeLeft}s
+                </span>
+              )}
+              <span class="text-xs opacity-85">
+                {currentIdx + 1} / {queue.length}
+              </span>
+            </div>
           </div>
+          {timerMode && (
+            <progress
+              class={`progress h-1 mb-3 w-full ${timeLeft <= 10 ? "progress-error" : timeLeft <= 20 ? "progress-warning" : "progress-success"}`}
+              value={timeLeft}
+              max={TIMER_SECONDS}
+            />
+          )}
 
           {/* Question display based on type */}
           {qType === "concept" ? (
