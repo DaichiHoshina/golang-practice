@@ -6,6 +6,8 @@ import { RandomQuiz } from "./random-quiz";
 import type { QuizScores } from "./random-quiz";
 import { SearchModal } from "./search";
 import { HomeIcon, DiceIcon, SearchIcon, BookmarkIcon } from "./icons";
+import type { SRSStore, StudyLog } from "./srs";
+import { processResult, recordActivity } from "./srs";
 
 function useLocalStorage<T>(
   key: string,
@@ -46,6 +48,8 @@ export function App() {
     "go-study-bookmarks",
     {},
   );
+  const [srsData, setSrsData] = useLocalStorage<SRSStore>("go-study-srs", {});
+  const [studyLog, setStudyLog] = useLocalStorage<StudyLog>("go-study-log", {});
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Desktop: default sidebar open
@@ -79,6 +83,11 @@ export function App() {
   const updateQuizScore = useCallback(
     (key: string, result: "correct" | "wrong") => {
       setQuizScores((prev: QuizScores) => ({ ...prev, [key]: result }));
+      setSrsData((prev: SRSStore) => ({
+        ...prev,
+        [key]: processResult(prev[key], result),
+      }));
+      setStudyLog((prev: StudyLog) => recordActivity(prev, result));
     },
     [],
   );
@@ -282,10 +291,16 @@ export function App() {
               <Dashboard
                 completed={completed}
                 notes={notes}
+                quizScores={quizScores}
+                studyLog={studyLog}
                 onNavigate={navigate}
               />
             ) : currentSection === "random-quiz" ? (
-              <RandomQuiz scores={quizScores} onScore={updateQuizScore} />
+              <RandomQuiz
+                scores={quizScores}
+                srsData={srsData}
+                onScore={updateQuizScore}
+              />
             ) : activeSection ? (
               <SectionView
                 section={activeSection}

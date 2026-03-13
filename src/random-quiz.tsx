@@ -9,6 +9,7 @@ import type { Quiz } from "./types";
 import { TOPICS, SECTIONS } from "./data";
 import { HighlightedText } from "./term-highlight";
 import { DiceIcon, ShuffleIcon, CheckIcon, RefreshCwIcon } from "./icons";
+import { isDue, countDue } from "./srs";
 
 // ─── Collect all quizzes with topic metadata ─────────────
 
@@ -67,6 +68,7 @@ const BLANK = "____";
 
 interface Props {
   scores: QuizScores;
+  srsData: import("./srs").SRSStore;
   onScore: (key: string, result: Result) => void;
 }
 
@@ -114,7 +116,7 @@ function CelebrationBurst() {
   );
 }
 
-export function RandomQuiz({ scores, onScore }: Props) {
+export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [queue, setQueue] = useState<QuizWithMeta[]>(() =>
     shuffle(ALL_QUIZZES),
@@ -134,12 +136,35 @@ export function RandomQuiz({ scores, onScore }: Props) {
     };
   }, []);
 
-  const handleSectionChange = useCallback((sectionId: string) => {
-    setSelectedSection(sectionId);
-    setQueue(shuffle(getPool(sectionId)));
-    setCurrentIdx(0);
-    setOpenSet(new Set());
-  }, []);
+  /** Build queue with SRS-due items first, then wrong, then rest */
+  const buildQueue = useCallback(
+    (sectionId: string) => {
+      const pool = getPool(sectionId);
+      const due: QuizWithMeta[] = [];
+      const rest: QuizWithMeta[] = [];
+      for (const q of pool) {
+        const key = `${q.topicId}_${pool.indexOf(q) % pool.length}`;
+        const card = srsData[key];
+        if (card && isDue(card)) {
+          due.push(q);
+        } else {
+          rest.push(q);
+        }
+      }
+      return [...shuffle(due), ...shuffle(rest)];
+    },
+    [srsData],
+  );
+
+  const handleSectionChange = useCallback(
+    (sectionId: string) => {
+      setSelectedSection(sectionId);
+      setQueue(buildQueue(sectionId));
+      setCurrentIdx(0);
+      setOpenSet(new Set());
+    },
+    [buildQueue],
+  );
 
   const current = queue[currentIdx];
   const pool = useMemo(() => getPool(selectedSection), [selectedSection]);
@@ -254,10 +279,10 @@ export function RandomQuiz({ scores, onScore }: Props) {
   );
 
   const handleReshuffle = useCallback(() => {
-    setQueue(shuffle(getPool(selectedSection)));
+    setQueue(buildQueue(selectedSection));
     setCurrentIdx(0);
     setOpenSet(new Set());
-  }, [selectedSection]);
+  }, [selectedSection, buildQueue]);
 
   // ─── Keyboard shortcuts ────────────────────────────────
   useEffect(() => {
@@ -302,7 +327,12 @@ export function RandomQuiz({ scores, onScore }: Props) {
           <div>
             <h1 class="text-xl font-bold">ランダム出題</h1>
             <p class="text-sm opacity-85 mt-0.5">
-              穴埋め問題をランダムに出題。間違えた問題は優先的に再出題。
+              穴埋め問題をランダムに出題。SRS復習予定の問題を優先。
+              {countDue(srsData) > 0 && (
+                <span class="badge badge-warning badge-xs ml-1.5 align-middle">
+                  復習 {countDue(srsData)}件
+                </span>
+              )}
             </p>
           </div>
         </div>
