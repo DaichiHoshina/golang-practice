@@ -4828,6 +4828,1804 @@ func relayOutboxEvents(ctx context.Context) {
       },
     ],
   },
+
+  // ── システム設計 ──────────────────────────────────────────
+
+  "sysdesign-api-gateway": {
+    id: "sysdesign-api-gateway",
+    section: "system-design",
+    title: "API Gateway パターン",
+    tag: "設計",
+    summary:
+      "API Gateway はクライアントとバックエンドサービス群の間に置く統合エントリポイント。認証・レート制限・ルーティング・レスポンス集約を担う。",
+    why: "マイクロサービスではサービスが多数になり、クライアントが個別に呼ぶと結合度が上がる。Gateway を挟むことでサービスの分割・統合が透過的になる。",
+    tradeoffs: [
+      {
+        title: "単一障害点",
+        desc: "Gateway がダウンすると全サービスが利用不能に。冗長化が必須。",
+      },
+      {
+        title: "レイテンシ増加",
+        desc: "追加のネットワークホップが入る。キャッシュや接続プールで緩和する。",
+      },
+    ],
+    badCode: `// クライアントが各サービスを直接呼ぶ
+const user = await fetch("http://user-svc:8080/users/1");
+const orders = await fetch("http://order-svc:8080/orders?user=1");
+const payments = await fetch("http://payment-svc:8080/payments?user=1");
+// 3つのサービスのURLがクライアントにハードコード
+// 認証チェックが各サービスにバラバラに実装`,
+    goodCode: `// API Gateway 経由で統一的にアクセス
+const profile = await fetch("/api/v1/users/1/profile");
+// Gateway が内部で user-svc, order-svc, payment-svc を集約
+// 認証・レート制限は Gateway で一元管理
+
+// Go での Gateway ルーティング例
+mux.Handle("/api/v1/users/", httputil.NewSingleHostReverseProxy(userSvcURL))
+mux.Handle("/api/v1/orders/", httputil.NewSingleHostReverseProxy(orderSvcURL))`,
+    interviewPoints: [
+      {
+        point: "BFF (Backend for Frontend) と API Gateway の違い",
+        detail:
+          "BFFはクライアント種別ごとに特化したGateway。モバイルBFF、Web BFFなど。API Gatewayは汎用的な統合ポイント。",
+      },
+      {
+        point: "Gateway でやるべきこと・やるべきでないこと",
+        detail:
+          "やるべき: 認証・レート制限・ログ集約・TLS終端。やるべきでない: ビジネスロジック・データ変換の過度な実装。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "API Gateway は ____ と ____ の間に配置し、____ や ____ を一元管理する",
+        blanks: ["クライアント", "バックエンドサービス", "認証", "レート制限"],
+        explanation:
+          "Gateway パターンにより、クライアントは個別のサービスURLを知る必要がなくなり、横断的関心事（認証、レート制限、ログ）を1箇所で管理できる。",
+      },
+      {
+        type: "concept" as const,
+        difficulty: "hard" as const,
+        code: "API Gateway が単一障害点になるリスクをどう軽減するか？",
+        blanks: [
+          "複数インスタンスでの冗長化（ロードバランサ配下）",
+          "ヘルスチェックと自動フェイルオーバー",
+          "Circuit Breaker でバックエンド障害の伝播を防止",
+        ],
+        explanation:
+          "Gateway 自体を水平スケールし、L4/L7 ロードバランサで分散する。各バックエンドへの接続に Circuit Breaker を設定し、1サービスの障害が全体に波及しないようにする。",
+      },
+    ],
+  },
+
+  "sysdesign-load-balancing": {
+    id: "sysdesign-load-balancing",
+    section: "system-design",
+    title: "ロードバランシング戦略",
+    tag: "設計",
+    summary:
+      "Round Robin・Least Connections・Consistent Hashing など、トラフィック分散の戦略とそのトレードオフ。",
+    why: "サービスのスケーラビリティと可用性を確保するため。適切なアルゴリズムを選ばないとホットスポットやセッション断裂が起きる。",
+    tradeoffs: [
+      {
+        title: "Round Robin vs Least Connections",
+        desc: "RR はシンプルだがリクエスト処理時間のばらつきに弱い。LC は均等だが状態管理のオーバーヘッドがある。",
+      },
+      {
+        title: "Sticky Session",
+        desc: "セッション維持は簡単だがスケールアウト時に不均衡が発生。ステートレス設計が理想。",
+      },
+    ],
+    badCode: `// 1台のサーバーに全トラフィックを流す
+upstream backend {
+    server app1:8080;
+    server app2:8080 backup; // backup はほぼ使われない
+}
+
+// セッションをサーバーメモリに保存
+sessions := map[string]*Session{} // スケールアウトで消失`,
+    goodCode: `// Least Connections でバランシング
+upstream backend {
+    least_conn;
+    server app1:8080;
+    server app2:8080;
+    server app3:8080;
+}
+
+// セッションは外部ストア（Redis）に保存
+func getSession(r *http.Request) (*Session, error) {
+    sid := r.Cookie("session_id")
+    return redis.Get(ctx, "sess:"+sid.Value).Result()
+}`,
+    interviewPoints: [
+      {
+        point: "L4 と L7 ロードバランサの違い",
+        detail:
+          "L4はTCP/IPレベルで高速。L7はHTTPヘッダやパスでルーティングでき柔軟だがオーバーヘッドがある。",
+      },
+      {
+        point: "Consistent Hashing の用途",
+        detail:
+          "キャッシュサーバーの分散に有効。ノード追加・削除時の再配置が最小限で済む。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Consistent Hashing はノードの追加・削除時に ____ だけが再配置される。通常のハッシュでは ____ のキーが再配置される",
+        blanks: ["一部のキー（隣接ノード分）", "ほぼ全て"],
+        explanation:
+          "通常のmod演算ではノード数変更で全キーの配置が変わるが、Consistent Hashingではリング上の隣接ノード間のキーだけが移動する。",
+      },
+    ],
+  },
+
+  "sysdesign-caching-strategy": {
+    id: "sysdesign-caching-strategy",
+    section: "system-design",
+    title: "キャッシュ戦略の設計",
+    tag: "設計",
+    summary:
+      "Cache-Aside・Write-Through・Write-Behind の3戦略と、TTL・Eviction Policy の設計判断。",
+    why: "適切なキャッシュ戦略はレイテンシを10-100倍改善する。一方で不整合やサンダリングハード問題を引き起こしうる。",
+    tradeoffs: [
+      {
+        title: "一貫性 vs パフォーマンス",
+        desc: "Write-Through は一貫性が高いが書き込み遅延が増す。Cache-Aside は読み取り最適だが stale read のリスク。",
+      },
+      {
+        title: "メモリコスト vs ヒット率",
+        desc: "キャッシュサイズを大きくするとヒット率は上がるがメモリコストが増大。LRU/LFU で効率的に管理。",
+      },
+    ],
+    badCode: `// キャッシュの整合性を考慮していない
+func GetUser(id string) (*User, error) {
+    // キャッシュにあれば返す（古くても）
+    if u, ok := cache[id]; ok {
+        return u, nil  // TTLなし → 永遠に古いデータを返す
+    }
+    u, err := db.FindUser(id)
+    cache[id] = u
+    return u, err
+}
+
+// Thundering Herd: 大量リクエストが同時にDBを叩く
+// キャッシュ切れの瞬間に100リクエストが同時にDBへ`,
+    goodCode: `// Cache-Aside with TTL + singleflight
+var group singleflight.Group
+
+func GetUser(ctx context.Context, id string) (*User, error) {
+    key := "user:" + id
+    // キャッシュチェック
+    if data, err := redis.Get(ctx, key).Bytes(); err == nil {
+        var u User
+        json.Unmarshal(data, &u)
+        return &u, nil
+    }
+    // singleflight で同時リクエストを1つにまとめる
+    v, err, _ := group.Do(key, func() (any, error) {
+        u, err := db.FindUser(ctx, id)
+        if err != nil { return nil, err }
+        data, _ := json.Marshal(u)
+        redis.Set(ctx, key, data, 5*time.Minute)
+        return u, nil
+    })
+    return v.(*User), err
+}`,
+    interviewPoints: [
+      {
+        point: "Cache stampede（Thundering Herd）の防止策",
+        detail:
+          "singleflight、確率的早期更新（PER）、ロックベースのキャッシュ更新で対処。",
+      },
+      {
+        point: "キャッシュの無効化戦略",
+        detail:
+          "TTLベース、イベント駆動（CDC）、明示的パージ。'There are only two hard things: cache invalidation and naming things.'",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Cache-Aside パターンでは、読み取り時にキャッシュミスすると ____ から取得して ____ に書き込む。書き込み時は ____ を更新しキャッシュを ____",
+        blanks: ["DB", "キャッシュ", "DB", "無効化（delete）"],
+        explanation:
+          "Cache-Aside では読み取り時のみキャッシュが充填され、書き込み時はDBを更新後にキャッシュを削除する（update ではなく delete が推奨。次の read 時にDBから最新を取得）。",
+      },
+      {
+        code: "singleflight.Group の ____ メソッドは、同一キーの同時呼び出しを ____ にまとめ、Thundering Herd を防ぐ",
+        blanks: ["Do", "1つの実行"],
+        explanation:
+          "singleflight は Go 標準の x/sync パッケージ。同じキーに対する並行リクエストをDedupし、最初のリクエストの結果を全員に返す。キャッシュ再構築時のDB負荷を大幅に削減できる。",
+        playgroundUrl: "https://go.dev/play/p/DYxRtIHkr6Z",
+      },
+    ],
+  },
+
+  "sysdesign-database-scaling": {
+    id: "sysdesign-database-scaling",
+    section: "system-design",
+    title: "データベースのスケーリング",
+    tag: "設計",
+    summary:
+      "Vertical Scaling・Read Replica・Sharding・Partitioning の使い分けと移行戦略。",
+    why: "サービス成長に伴いDBがボトルネックになる。適切な戦略選択がサービスの成長限界を決める。",
+    tradeoffs: [
+      {
+        title: "Read Replica vs Sharding",
+        desc: "Read Replicaは読み取りスケールのみ。Shardingは書き込みもスケールするが複雑性が大幅に増す。",
+      },
+      {
+        title: "アプリケーション分割 vs DBレベル分割",
+        desc: "機能単位のDB分割（Vertical Partitioning）は比較的安全。行レベルのShardingはクロスシャードクエリが課題。",
+      },
+    ],
+    badCode: `// 全データを1つのテーブルに（1億行超でスロークエリ）
+SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC
+// フルテーブルスキャン → タイムアウト
+
+// Sharding キーの選択ミス
+// user_id でシャーディングしたが、特定ユーザーに注文が集中
+// → ホットスポット発生`,
+    goodCode: `// Read Replica で読み取り分散
+func GetOrders(ctx context.Context, userID string) ([]Order, error) {
+    // 読み取りはレプリカへ
+    return db.Replica().WithContext(ctx).
+        Where("user_id = ?", userID).
+        Order("created_at DESC").
+        Limit(50).Find(&orders)
+}
+
+func CreateOrder(ctx context.Context, o *Order) error {
+    // 書き込みはプライマリへ
+    return db.Primary().WithContext(ctx).Create(o).Error
+}
+
+// Sharding: compound key で均一分散
+shardKey := hash(tenantID + userID) % numShards`,
+    interviewPoints: [
+      {
+        point: "CAP定理とBASE",
+        detail:
+          "分散DBではConsistency・Availability・Partition Toleranceの3つ全ては同時に満たせない。BASEはAvailabilityを優先し結果整合性を受け入れるアプローチ。",
+      },
+      {
+        point: "シャーディングの移行戦略",
+        detail:
+          "Double-write → Shadow read → Cutover。データ整合性チェックを挟みながら段階的に移行。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        difficulty: "hard" as const,
+        code: "Read Replica で注意すべきレプリケーションラグとその対処法は？",
+        blanks: [
+          "プライマリからレプリカへの反映に遅延がある（数ms〜数秒）",
+          "書き込み直後の読み取りはプライマリに向ける（read-your-writes一貫性）",
+          "レプリカのlag監視とフェイルオーバー自動化",
+        ],
+        explanation:
+          "非同期レプリケーションでは書き込み直後にレプリカを読むと古いデータが返る。重要な画面（注文完了直後の確認など）ではプライマリを読むことでユーザー体験を維持する。",
+      },
+    ],
+  },
+
+  "sysdesign-message-queue": {
+    id: "sysdesign-message-queue",
+    section: "system-design",
+    title: "メッセージキューの設計",
+    tag: "設計",
+    summary:
+      "Kafka・RabbitMQ・SQS の特性比較と、At-least-once / Exactly-once の意味。",
+    why: "非同期処理・サービス間疎結合・ピーク負荷吸収にメッセージキューは不可欠。配信保証レベルの選択が整合性に直結する。",
+    tradeoffs: [
+      {
+        title: "At-most-once vs At-least-once",
+        desc: "At-most-once はメッセージ消失リスク。At-least-once は重複処理リスク（べき等性が必要）。",
+      },
+      {
+        title: "順序保証 vs スループット",
+        desc: "厳密な順序保証はパーティション単位でのみ実現可能。グローバル順序は実質不可能。",
+      },
+    ],
+    badCode: `// メッセージの処理失敗を無視
+func consume(msg Message) {
+    processOrder(msg) // エラーを無視 → メッセージ消失
+    msg.Ack()         // 常にAck → 失敗したメッセージが消える
+}
+
+// べき等性なしで At-least-once を使う
+func processPayment(msg Message) {
+    chargeCard(msg.Amount) // 重複配信で二重課金！
+    msg.Ack()
+}`,
+    goodCode: `// べき等性 + エラーハンドリング + DLQ
+func consume(ctx context.Context, msg Message) error {
+    // べき等性チェック
+    processed, _ := redis.SetNX(ctx,
+        "processed:"+msg.ID, "1", 24*time.Hour).Result()
+    if !processed {
+        msg.Ack() // 重複 → スキップ
+        return nil
+    }
+    if err := processOrder(ctx, msg); err != nil {
+        msg.Nack() // 処理失敗 → リトライキューへ
+        return err
+    }
+    msg.Ack()
+    return nil
+}`,
+    interviewPoints: [
+      {
+        point: "Kafka と RabbitMQ の使い分け",
+        detail:
+          "Kafka: 大量ストリーム・ログ集約・イベントソーシング向け。RabbitMQ: タスクキュー・RPC・柔軟なルーティング向け。",
+      },
+      {
+        point: "Dead Letter Queue (DLQ)",
+        detail:
+          "一定回数リトライしても処理できないメッセージを退避させるキュー。手動確認や後続処理の契機になる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "At-least-once 配信では ____ のリスクがあるため、consumer は ____ でなければならない",
+        blanks: ["重複配信", "べき等（idempotent）"],
+        explanation:
+          "ブローカーがAckを受信できなかった場合（ネットワーク障害等）、メッセージを再送する。consumer側でメッセージIDによる重複チェックや、UPSERTなどのべき等操作で対処する。",
+      },
+    ],
+  },
+
+  "sysdesign-rate-limiting": {
+    id: "sysdesign-rate-limiting",
+    section: "system-design",
+    title: "レート制限の設計と実装",
+    tag: "設計",
+    summary:
+      "Token Bucket・Sliding Window・Fixed Window の3アルゴリズムと分散環境での実装。",
+    why: "APIの保護・公平性確保・コスト管理にレート制限は必須。アルゴリズムの特性を理解しないとバースト許可や不公平な制限が発生する。",
+    tradeoffs: [
+      {
+        title: "Fixed Window vs Sliding Window",
+        desc: "Fixed Windowは境界でバーストが2倍になりうる。Sliding Windowは正確だがメモリ消費が多い。",
+      },
+      {
+        title: "ローカル vs 分散",
+        desc: "ローカルカウンタは高速だがインスタンス間で一貫性がない。Redis等の分散カウンタは正確だがレイテンシが加わる。",
+      },
+    ],
+    badCode: `// Fixed Window の境界問題
+// 窓 1: 11:00:00-11:00:59 → 100 req (limit 100)
+// 窓 2: 11:01:00-11:01:59 → 100 req (limit 100)
+// 実質 11:00:30-11:01:30 の1分間に200 req 通過！
+
+// メモリリーク: クリーンアップなし
+var counters = map[string]int{} // 無限に増加`,
+    goodCode: `// Token Bucket (golang.org/x/time/rate)
+limiter := rate.NewLimiter(rate.Every(time.Second), 10) // 10 req/s, burst 10
+
+func rateLimitMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if !limiter.Allow() {
+            w.Header().Set("Retry-After", "1")
+            http.Error(w, "Too Many Requests", 429)
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
+// 分散環境: Redis Sliding Window
+func isAllowed(ctx context.Context, key string, limit int, window time.Duration) bool {
+    now := time.Now().UnixMilli()
+    pipe := redis.Pipeline()
+    pipe.ZRemRangeByScore(ctx, key, "0", strconv.FormatInt(now-window.Milliseconds(), 10))
+    pipe.ZAdd(ctx, key, redis.Z{Score: float64(now), Member: now})
+    pipe.ZCard(ctx, key)
+    pipe.Expire(ctx, key, window)
+    results, _ := pipe.Exec(ctx)
+    count := results[2].(*redis.IntCmd).Val()
+    return count <= int64(limit)
+}`,
+    interviewPoints: [
+      {
+        point: "Token Bucket と Leaky Bucket の違い",
+        detail:
+          "Token Bucketはバースト許容。Leaky Bucketは一定レートで流出しバーストを平滑化。",
+      },
+      {
+        point: "429 レスポンスの設計",
+        detail:
+          "Retry-Afterヘッダ、X-RateLimit-Remaining ヘッダで残量を通知。クライアントのexponential backoffと組み合わせる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Token Bucket は ____ のレートでトークンが補充され、バースト時は ____ まで一度に使える。Go の rate.NewLimiter(r, b) で r が ____ 、b が ____",
+        blanks: ["一定", "バケット容量", "補充レート", "バーストサイズ"],
+        explanation:
+          "rate.NewLimiter(rate.Every(time.Second), 10) は毎秒10トークン補充、最大10トークン蓄積。バケットが満杯なら10リクエストを即座に処理でき、その後は毎秒10リクエストのペースに落ち着く。",
+        playgroundUrl: "https://go.dev/play/p/t4MLmhKiNaJ",
+      },
+    ],
+  },
+
+  "sysdesign-distributed-tracing": {
+    id: "sysdesign-distributed-tracing",
+    section: "system-design",
+    title: "分散トレーシングの設計",
+    tag: "設計",
+    summary:
+      "OpenTelemetry によるTrace/Span の概念、Context Propagation、サンプリング戦略。",
+    why: "マイクロサービスではリクエストが複数サービスを横断する。トレーシングなしでは障害箇所の特定に数時間かかることもある。",
+    tradeoffs: [
+      {
+        title: "全量トレース vs サンプリング",
+        desc: "全量は高精度だがストレージ・CPUコストが高い。サンプリングはコスト削減だがレアなエラーを見逃す可能性。",
+      },
+      {
+        title: "Head-based vs Tail-based サンプリング",
+        desc: "Head-basedは入口で決定（シンプル）。Tail-basedは完了後に判定（エラーやスロークエリを確実に保持）。",
+      },
+    ],
+    badCode: `// ログだけで追跡（サービスをまたぐと追えない）
+log.Printf("processing order %s", orderID)
+// user-svc のログと order-svc のログを
+// タイムスタンプで突き合わせ？ → 非現実的
+
+// context を伝播しない
+func callPaymentService(orderID string) {
+    http.Get("http://payment-svc/pay?order=" + orderID)
+    // trace context が欠落 → 別のトレースとして記録
+}`,
+    goodCode: `// OpenTelemetry でトレース伝播
+func callPaymentService(ctx context.Context, orderID string) error {
+    // ctx から span を開始（親spanにリンク）
+    ctx, span := tracer.Start(ctx, "callPaymentService")
+    defer span.End()
+
+    req, _ := http.NewRequestWithContext(ctx, "POST",
+        "http://payment-svc/pay", nil)
+    // otelhttp が W3C Traceparent ヘッダを自動注入
+    otelhttp.NewTransport(http.DefaultTransport).RoundTrip(req)
+    return nil
+}
+
+// サンプリング設定
+tp := sdktrace.NewTracerProvider(
+    sdktrace.WithSampler(
+        sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.1)), // 10%
+    ),
+)`,
+    interviewPoints: [
+      {
+        point: "Trace・Span・SpanContext の関係",
+        detail:
+          "Traceは1リクエスト全体。Spanは1操作（DB呼び出し等）。SpanContextはTraceID+SpanIDでサービス間を伝播する。",
+      },
+      {
+        point: "W3C Traceparent ヘッダ",
+        detail:
+          "version-traceid-parentid-flags の形式。OpenTelemetryが自動で注入・抽出し、サービス間でトレースを連結する。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "OpenTelemetry で tracer.Start(ctx, name) は新しい ____ を作成し、親の ____ をctxから継承する。サービス間では ____ ヘッダで伝播する",
+        blanks: ["Span", "TraceID", "W3C Traceparent"],
+        explanation:
+          "各Spanは開始・終了時刻、属性、ステータスを記録する。ctxに含まれるTraceIDを引き継ぐことで、異なるサービスのSpanが同一Traceにまとまる。",
+      },
+    ],
+  },
+
+  "sysdesign-circuit-breaker-detail": {
+    id: "sysdesign-circuit-breaker-detail",
+    section: "system-design",
+    title: "Circuit Breaker の状態遷移設計",
+    tag: "設計",
+    summary:
+      "Closed→Open→Half-Open の3状態遷移。失敗率の閾値、タイムアウト設計、フォールバック戦略。",
+    why: "依存サービスの障害がカスケードして全システムダウンに至る。Circuit Breaker で障害を局所化し、復旧を待つ時間を確保する。",
+    tradeoffs: [
+      {
+        title: "閾値の設定",
+        desc: "閾値が低すぎると正常時にもOpenになる。高すぎると障害検知が遅れる。",
+      },
+      {
+        title: "フォールバックの品質",
+        desc: "キャッシュ返却・デフォルト値・機能縮退など。ユーザー体験とデータ鮮度のバランス。",
+      },
+    ],
+    badCode: `// タイムアウトなし → 障害サービスを永遠に待つ
+resp, err := http.Get("http://slow-service/api")
+// slow-service が応答しない → goroutine がブロック
+// → コネクションプール枯渇 → 呼び出し元もダウン`,
+    goodCode: `// gobreaker でCircuit Breaker
+cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+    Name:        "payment-service",
+    MaxRequests: 3,              // Half-Open で許可するリクエスト数
+    Interval:    10 * time.Second, // Closed での集計間隔
+    Timeout:     30 * time.Second, // Open → Half-Open の待機時間
+    ReadyToTrip: func(counts gobreaker.Counts) bool {
+        return counts.ConsecutiveFailures > 5
+    },
+})
+
+result, err := cb.Execute(func() (any, error) {
+    return callPaymentService(ctx)
+})
+if err != nil {
+    // フォールバック: キャッシュから前回の結果を返す
+    return getCachedResult(ctx)
+}`,
+    interviewPoints: [
+      {
+        point: "3状態の遷移",
+        detail:
+          "Closed(正常)→失敗閾値超過→Open(全拒否)→タイムアウト→Half-Open(試行)→成功→Closed / 失敗→Open",
+      },
+      {
+        point: "Bulkhead パターンとの組み合わせ",
+        detail:
+          "Circuit Breakerは障害検知・遮断。Bulkheadはリソース分離（コネクションプール分割等）。併用で耐障害性を向上。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Circuit Breaker の3状態は ____ → ____ → ____ 。Open状態では全リクエストを ____ し、タイムアウト後に ____ でプローブする",
+        blanks: [
+          "Closed",
+          "Open",
+          "Half-Open",
+          "即座に拒否（fail fast）",
+          "少数のリクエスト",
+        ],
+        explanation:
+          "Closed で正常に通信。失敗率が閾値を超えると Open に遷移し、全リクエストを即座にエラーで返す。タイムアウト後に Half-Open で少数リクエストを試行し、成功すれば Closed に戻る。",
+      },
+    ],
+  },
+
+  // ── Go深層 ──────────────────────────────────────────
+
+  "deep-scheduler": {
+    id: "deep-scheduler",
+    section: "concurrency",
+    title: "Go Scheduler の内部構造 (GMP)",
+    tag: "上級",
+    summary:
+      "G (goroutine)・M (OS thread)・P (Processor) の3要素モデルとスケジューリングの仕組み。",
+    why: "goroutine のパフォーマンス特性とスケジューラの挙動を理解することで、並行処理の性能問題を根本から解決できるようになる。",
+    tradeoffs: [
+      {
+        title: "GOMAXPROCS の設定",
+        desc: "P の数 = 並行度。CPU集約ならコア数、I/O集約なら増やすメリットがある場合も。",
+      },
+      {
+        title: "協調的プリエンプション",
+        desc: "Go 1.14 以降はシグナルベースの非同期プリエンプション。計算ループでもブロックしなくなった。",
+      },
+    ],
+    badCode: `// GOMAXPROCS=1 でCPU集約タスクを並列化しようとする
+runtime.GOMAXPROCS(1)
+for i := 0; i < 4; i++ {
+    go heavyComputation() // P=1 なので実質直列
+}
+
+// goroutine が多すぎてスケジューラのオーバーヘッドが支配的に
+for i := 0; i < 10_000_000; i++ {
+    go tinyTask() // 10M goroutine → スケジューラの負荷大
+}`,
+    goodCode: `// CPU集約: コア数分のgoroutineで処理
+numWorkers := runtime.GOMAXPROCS(0) // デフォルト=コア数
+ch := make(chan Work, numWorkers)
+for i := 0; i < numWorkers; i++ {
+    go func() {
+        for w := range ch { process(w) }
+    }()
+}
+
+// I/O集約: goroutine数を増やしつつsemaphoreで制御
+sem := make(chan struct{}, 100) // 同時100接続まで
+for _, url := range urls {
+    sem <- struct{}{}
+    go func(u string) {
+        defer func() { <-sem }()
+        fetch(u)
+    }(url)
+}`,
+    interviewPoints: [
+      {
+        point: "GMP モデルの各要素の役割",
+        detail:
+          "G: goroutine。M: OSスレッド。P: ローカルキュー+実行コンテキスト。M は P を持たないと G を実行できない。P のローカルキューが空だと他の P からワークスティーリング。",
+      },
+      {
+        point: "goroutine のコスト",
+        detail:
+          "初期スタックは2KB（OS threadは1MB）。コンテキストスイッチはユーザー空間で完結。数十万goroutineが実用的。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Go の GMP モデルで G は ____ 、M は ____ 、P は ____ を表す。GOMAXPROCS は ____ の数を制御する",
+        blanks: [
+          "goroutine",
+          "OS スレッド",
+          "Processor（ローカルキュー）",
+          "P",
+        ],
+        explanation:
+          "M は P を1つ持ち、P のローカルキューから G を取り出して実行する。ローカルキューが空だとグローバルキューや他の P からスティーリングする。GOMAXPROCS=N は同時にGを実行できるPの数を決める。",
+      },
+      {
+        type: "concept" as const,
+        difficulty: "hard" as const,
+        code: "Go 1.14 で導入された非同期プリエンプションの仕組みと、それ以前の問題点は？",
+        blanks: [
+          "以前は関数呼び出し時にのみプリエンプションポイントがあった",
+          "タイトなforループがスケジューラをブロックし、他のgoroutineが飢餓状態に",
+          "1.14以降はシグナル(SIGURG)でスタックを検査し、任意のタイミングでプリエンプション可能に",
+        ],
+        explanation:
+          "Go 1.14 以前は for{} の無限ループがあるとスケジューラが割り込めず、GOMAXPROCS個のgoroutineがCPUを独占していた。非同期プリエンプションにより、計算集約ループでもフェアスケジューリングが保証されるようになった。",
+      },
+    ],
+  },
+
+  "deep-memory-model": {
+    id: "deep-memory-model",
+    section: "concurrency",
+    title: "Go Memory Model と happens-before",
+    tag: "上級",
+    summary:
+      "happens-before 関係の定義、channel・mutex・atomic が保証する順序、sync.Once の安全性。",
+    why: "メモリモデルを理解しないと「たまに壊れる」バグを書いてしまう。race detector で検出できないバグもある。",
+    tradeoffs: [
+      {
+        title: "sync/atomic vs sync.Mutex",
+        desc: "atomicは軽量だが複合操作には使えない。Mutexは汎用だがロック競合のリスク。",
+      },
+      {
+        title: "Channel vs 共有メモリ",
+        desc: "Channelは安全だがオーバーヘッドがある。共有メモリ+ロックは高速だが正しさの保証が難しい。",
+      },
+    ],
+    badCode: `// happens-before なしのデータ共有
+var data string
+var ready bool
+
+go func() {
+    data = "hello"
+    ready = true // コンパイラ/CPUが並べ替える可能性
+}()
+
+if ready { // data を読む時に "hello" とは限らない
+    fmt.Println(data)
+}`,
+    goodCode: `// channel で happens-before を保証
+var data string
+done := make(chan struct{})
+
+go func() {
+    data = "hello"
+    close(done) // data への書き込みが done 受信より前に起こることを保証
+}()
+
+<-done
+fmt.Println(data) // 確実に "hello"
+
+// sync.Once は内部で happens-before を保証
+var once sync.Once
+var config *Config
+once.Do(func() {
+    config = loadConfig() // 全goroutineがこの結果を確実に見る
+})`,
+    interviewPoints: [
+      {
+        point: "happens-before の3つの基本規則",
+        detail:
+          "1. 同一goroutine内の順序。2. channel送信は対応する受信より前。3. Mutex Unlockは次のLockより前。",
+      },
+      {
+        point: "race detector の限界",
+        detail:
+          "-race フラグは実行パスに依存。全パスを実行しないと検出できない。CI で高カバレッジのテストを -race で回すのがベストプラクティス。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Go のメモリモデルで channel の ____ は対応する ____ よりも happens-before 。これにより channel を介したデータ共有は ____",
+        blanks: ["送信（send）", "受信（receive）", "安全（race-free）"],
+        explanation:
+          "channelの送信完了は受信完了よりも前に起きることがメモリモデルで保証されている。送信前にセットした変数は受信後に確実に見える。",
+      },
+    ],
+  },
+
+  "deep-reflect-unsafe": {
+    id: "deep-reflect-unsafe",
+    section: "advanced",
+    title: "reflect と unsafe の実務的使い方",
+    tag: "上級",
+    summary:
+      "reflect パッケージによる汎用処理と unsafe.Pointer の正当な使用場面。",
+    why: "ORMやシリアライザなど reflect は実務フレームワークの根幹。unsafe は原則避けるが、理解しておくことでランタイムの動作を深く把握できる。",
+    tradeoffs: [
+      {
+        title: "reflect vs generics",
+        desc: "Go 1.18+ では generics で型安全に書ける場面が増えた。reflect は動的型情報が必要な場合のみ使用。",
+      },
+      {
+        title: "unsafe の使用基準",
+        desc: "標準ライブラリ内では性能最適化に使われる。アプリケーションコードでは原則禁止。互換性保証がない。",
+      },
+    ],
+    badCode: `// reflect で全フィールドを無差別にセット
+func setAll(v any, val string) {
+    rv := reflect.ValueOf(v).Elem()
+    for i := 0; i < rv.NumField(); i++ {
+        f := rv.Field(i)
+        if f.CanSet() {
+            f.SetString(val) // 型チェックなし → panic
+        }
+    }
+}
+
+// unsafe で構造体のメモリレイアウトをハードコード
+p := unsafe.Pointer(&s)
+namePtr := (*string)(unsafe.Add(p, 16)) // オフセット決め打ち → 壊れやすい`,
+    goodCode: `// reflect: 構造体タグを使った安全なマッピング
+func mapFields(dst any, src map[string]string) error {
+    rv := reflect.ValueOf(dst).Elem()
+    rt := rv.Type()
+    for i := 0; i < rt.NumField(); i++ {
+        field := rt.Field(i)
+        tag := field.Tag.Get("map")
+        if tag == "" || tag == "-" { continue }
+        val, ok := src[tag]
+        if !ok { continue }
+        f := rv.Field(i)
+        if f.Kind() == reflect.String && f.CanSet() {
+            f.SetString(val)
+        }
+    }
+    return nil
+}
+
+// generics で置き換え可能なら generics を優先
+func Map[T, U any](s []T, f func(T) U) []U {
+    result := make([]U, len(s))
+    for i, v := range s { result[i] = f(v) }
+    return result
+}`,
+    interviewPoints: [
+      {
+        point: "reflect.Type と reflect.Value の違い",
+        detail:
+          "Typeは型情報（フィールド名、タグ、メソッド一覧）。Valueは値への参照（読み書き可能）。Elem()でポインタの参照先を取得。",
+      },
+      {
+        point: "unsafe.Pointer の合法的な使用パターン",
+        detail:
+          "任意のポインタ型への変換、uintptr を使ったポインタ演算。GC の影響を受けるため1式で完結させる必要がある。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "reflect.ValueOf(ptr).____() でポインタの参照先を取得し、.____() でフィールド数を得る。構造体タグは reflect.____().Field(i).Tag.Get(key) で取得する",
+        blanks: ["Elem", "NumField", "TypeOf"],
+        explanation:
+          "reflect.ValueOf はインターフェースから reflect.Value を作成。ポインタなら Elem() で参照先を取得。NumField() はフィールド数。タグ情報は Type 側にあるので TypeOf() を使う。",
+        playgroundUrl: "https://go.dev/play/p/7QbdU-mCi4K",
+      },
+    ],
+  },
+
+  "deep-generics-advanced": {
+    id: "deep-generics-advanced",
+    section: "advanced",
+    title: "Generics 応用パターン",
+    tag: "上級",
+    summary:
+      "型制約の設計、型推論の限界、Option/Result パターン、型安全なコンテナの実装。",
+    why: "Go 1.18 の generics は基本的な使い方だけでなく、ライブラリ設計やパターン実装で真価を発揮する。",
+    tradeoffs: [
+      {
+        title: "Generics vs Interface",
+        desc: "Genericsはコンパイル時の型安全性。Interfaceは実行時の柔軟性。パフォーマンスはGenericsが有利（型消去なし）。",
+      },
+      {
+        title: "制約の複雑さ",
+        desc: "複雑な型制約はコードの理解を困難にする。シンプルな制約（comparable, constraints.Ordered等）を優先。",
+      },
+    ],
+    badCode: `// any を多用して型安全性を放棄
+func Filter(s []any, pred func(any) bool) []any {
+    var result []any
+    for _, v := range s {
+        if pred(v) { result = append(result, v) }
+    }
+    return result
+}
+// 使用側で毎回型アサーション必要
+nums := Filter(data, func(v any) bool {
+    return v.(int) > 5 // panic リスク
+})`,
+    goodCode: `// 型安全な Filter
+func Filter[T any](s []T, pred func(T) bool) []T {
+    result := make([]T, 0, len(s)/2)
+    for _, v := range s {
+        if pred(v) { result = append(result, v) }
+    }
+    return result
+}
+
+// Result 型パターン
+type Result[T any] struct {
+    Value T
+    Err   error
+}
+func Ok[T any](v T) Result[T] { return Result[T]{Value: v} }
+func Fail[T any](err error) Result[T] { return Result[T]{Err: err} }
+
+// 型制約でソート可能を保証
+func MaxBy[T any, K constraints.Ordered](s []T, key func(T) K) T {
+    best := s[0]
+    for _, v := range s[1:] {
+        if key(v) > key(best) { best = v }
+    }
+    return best
+}`,
+    interviewPoints: [
+      {
+        point: "型パラメータのコンパイル戦略",
+        detail:
+          "Go は辞書パッシング方式。各型インスタンスで同一のマシンコードを共有し、型情報を辞書で渡す。C++テンプレートのようなコード膨張が起きない。",
+      },
+      {
+        point: "comparable 制約の注意点",
+        detail:
+          "map のキーや == 比較に必要。ただし interface を含む型は実行時panicの可能性がある（Go 1.20で改善）。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Go の generics 関数 func Max[T ____](a, b T) T は T が比較可能であることを制約する。constraints パッケージの ____ はすべての数値・文字列の順序型を含む",
+        blanks: ["constraints.Ordered", "Ordered"],
+        explanation:
+          "constraints.Ordered は ~int | ~float64 | ~string 等すべての順序比較可能な型のunion。comparable は == のみ、Ordered は < > も使える。",
+        playgroundUrl: "https://go.dev/play/p/Oq9FY12AKCS",
+      },
+    ],
+  },
+
+  "deep-context-internals": {
+    id: "deep-context-internals",
+    section: "design",
+    title: "context パッケージの内部実装",
+    tag: "上級",
+    summary:
+      "context.Context のツリー構造、WithCancel/WithTimeout の伝播メカニズム、AfterFunc (Go 1.21)。",
+    why: "context はキャンセル・タイムアウト・値伝播の統一メカニズム。内部構造を理解すると、リーク防止やパフォーマンス最適化が的確にできる。",
+    tradeoffs: [
+      {
+        title: "context.Value の使用基準",
+        desc: "リクエストスコープのメタデータ（traceID等）のみ。ビジネスロジックのパラメータには使わない。",
+      },
+      {
+        title: "タイムアウトの階層",
+        desc: "子 context は親より短いタイムアウトしか設定できない。親が5秒なら子に10秒を設定しても5秒で切れる。",
+      },
+    ],
+    badCode: `// context.Value にビジネスデータを入れる
+ctx = context.WithValue(ctx, "userID", 123)
+// 型安全性なし、キーが衝突する可能性
+
+// cancel を呼ばない → goroutine リーク
+ctx, _ = context.WithCancel(parentCtx) // _ で cancel を捨てる
+go longRunning(ctx) // parent がキャンセルされるまでリーク
+
+// context.Background を深い層で使う
+func innerFunc() {
+    ctx := context.Background() // 親のキャンセルが伝播しない！
+}`,
+    goodCode: `// 型安全な context key
+type ctxKey struct{}
+func WithUserID(ctx context.Context, id int64) context.Context {
+    return context.WithValue(ctx, ctxKey{}, id)
+}
+func UserID(ctx context.Context) (int64, bool) {
+    id, ok := ctx.Value(ctxKey{}).(int64)
+    return id, ok
+}
+
+// cancel を必ず呼ぶ
+ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+defer cancel() // 関数終了時に必ずキャンセル
+
+// Go 1.21: AfterFunc でキャンセル時のクリーンアップ
+stop := context.AfterFunc(ctx, func() {
+    conn.Close() // ctx キャンセル時に自動実行
+})
+defer stop()`,
+    interviewPoints: [
+      {
+        point: "context のツリー構造とキャンセル伝播",
+        detail:
+          "WithCancel は子ノードを作成。親がキャンセルされると全子孫に伝播。子のキャンセルは親に影響しない。",
+      },
+      {
+        point: "context.Value の検索コスト",
+        detail:
+          "チェーンを親方向に線形探索。深いネストでは O(n)。頻繁なアクセスにはミドルウェアで一度取り出して関数引数に渡すのが望ましい。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "context.WithValue のキーには ____ 型を使い衝突を防ぐ。context.WithTimeout(parent, d) で d が親の残り時間より ____ 場合、親のタイムアウトが優先される",
+        blanks: ["非公開の構造体（unexported struct）", "長い"],
+        explanation:
+          "非公開構造体型をキーにすると他パッケージからの衝突が原理的に起きない。タイムアウトは親子で短い方が適用される。子に長いタイムアウトを設定しても親の期限を超えられない。",
+        playgroundUrl: "https://go.dev/play/p/TnXrwRRuePF",
+      },
+    ],
+  },
+
+  "deep-interface-internals": {
+    id: "deep-interface-internals",
+    section: "advanced",
+    title: "interface の内部表現 (iface/eface)",
+    tag: "上級",
+    summary:
+      "interface{} (eface) と 型付きinterface (iface) の内部構造、nil interface の罠、型アサーションのコスト。",
+    why: "interface の内部構造を理解することで、nil比較のバグ、パフォーマンス特性、型アサーションの使い分けを正確に判断できる。",
+    tradeoffs: [
+      {
+        title: "interface{} vs generics",
+        desc: "interface{}は動的ディスパッチ（実行時コスト）。genericsは静的ディスパッチ（コンパイル時解決）。",
+      },
+      {
+        title: "小さいinterface vs 大きいinterface",
+        desc: "Go のイディオムは小さいinterface。io.Reader(1メソッド)が理想。大きいinterfaceは実装の負担が大きい。",
+      },
+    ],
+    badCode: `// nil interface の罠
+func getError() error {
+    var p *MyError = nil
+    return p // error interface に nil ポインタを入れる
+}
+err := getError()
+if err != nil { // true！ interface は (type=*MyError, value=nil) で非nil
+    fmt.Println("error:", err) // <nil> と表示される
+}`,
+    goodCode: `// nil を返す場合は明示的に interface の nil を返す
+func getError() error {
+    var p *MyError = nil
+    if p == nil {
+        return nil // interface 自体が nil
+    }
+    return p
+}
+
+// 型アサーション: カンマOKイディオム
+if myErr, ok := err.(*MyError); ok {
+    // myErr は *MyError 型として安全に使える
+    log.Printf("code: %d", myErr.Code)
+}
+
+// 型スイッチでの分岐
+switch e := err.(type) {
+case *NotFoundError: return 404
+case *ValidationError: return 400
+default: return 500
+}`,
+    interviewPoints: [
+      {
+        point: "iface と eface の構造",
+        detail:
+          "iface は (tab *itab, data unsafe.Pointer)。tab はインターフェースの型情報とメソッドテーブル。eface (interface{}) は (type *_type, data unsafe.Pointer)。",
+      },
+      {
+        point: "interface の nil 比較",
+        detail:
+          "interface が nil なのは type と data の両方が nil の場合のみ。nil ポインタを interface に入れると type が非nil になるため、interface 自体は非nil。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Go の interface は内部的に (____, ____) のペアで表現される。nil ポインタを interface に代入すると type が ____ になるため interface != nil",
+        blanks: ["type", "data（値ポインタ）", "非nil（具体型が設定される）"],
+        explanation:
+          "var p *MyError = nil を error に代入すると (type=*MyError, data=nil)。type フィールドが非nil なので interface の nil チェックは false を返す。これが Go の有名な nil interface の罠。",
+        playgroundUrl: "https://go.dev/play/p/2MAtNl2PXSE",
+      },
+    ],
+  },
+
+  // ── 運用・パフォーマンス ──────────────────────────────────
+
+  "ops-profiling-production": {
+    id: "ops-profiling-production",
+    section: "performance",
+    title: "本番環境プロファイリング",
+    tag: "計測",
+    summary:
+      "net/http/pprof の本番公開戦略、Continuous Profiling、フレームグラフの読み方。",
+    why: "ステージングでは再現しない本番特有のパフォーマンス問題がある。安全にプロファイルを取得する技術が必要。",
+    tradeoffs: [
+      {
+        title: "CPU プロファイル vs メモリプロファイル",
+        desc: "CPU は処理時間のホットスポット。メモリはアロケーション元の特定。両方取得するのが理想だがオーバーヘッドに注意。",
+      },
+      {
+        title: "Sampling Rate",
+        desc: "高頻度サンプリングは精度向上するがCPUオーバーヘッドが増す。デフォルト100Hz（10ms間隔）が妥当。",
+      },
+    ],
+    badCode: `// pprof を認証なしで全公開
+import _ "net/http/pprof"
+go http.ListenAndServe(":6060", nil)
+// 全世界からプロファイルが取得可能 → セキュリティリスク
+
+// 本番で30秒のCPUプロファイル → レスポンス遅延
+go tool pprof http://prod:6060/debug/pprof/profile?seconds=30`,
+    goodCode: `// pprof を認証付き別ポートで公開
+mux := http.NewServeMux()
+mux.HandleFunc("/debug/pprof/", pprof.Index)
+mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+mux.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+
+// 内部ネットワークのみ + Basic Auth
+debugSrv := &http.Server{
+    Addr:    ":6060",
+    Handler: basicAuth(mux, "admin", os.Getenv("PPROF_PASS")),
+}
+go debugSrv.ListenAndServe()
+
+// 短時間サンプル取得（5秒）
+// go tool pprof http://internal:6060/debug/pprof/profile?seconds=5
+// go tool pprof http://internal:6060/debug/pprof/heap`,
+    interviewPoints: [
+      {
+        point: "フレームグラフの読み方",
+        detail:
+          "幅が広いほど時間消費が大きい。上に積まれたフレームが呼び出し元。flat（自身の時間）とcum（子を含む合計時間）の両方を確認。",
+      },
+      {
+        point: "Continuous Profiling",
+        detail:
+          "Pyroscope, Datadog Continuous Profiler 等で常時プロファイルを収集。パフォーマンス劣化をデプロイと相関させて原因特定。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "pprof のフレームグラフで ____ が広いフレームほどCPU時間を消費している。flat は ____ の時間、cum は ____ を含む合計時間",
+        blanks: ["幅", "その関数自身", "子関数の呼び出し"],
+        explanation:
+          "flat timeが大きい関数が直接のホットスポット。cum timeが大きいが flat が小さい場合、その関数自体ではなく呼び出し先に問題がある。",
+      },
+    ],
+  },
+
+  "ops-graceful-migration": {
+    id: "ops-graceful-migration",
+    section: "practical",
+    title: "DB マイグレーションの安全な運用",
+    tag: "実務頻出",
+    summary:
+      "無停止マイグレーション戦略: Expand/Contract パターン、Online DDL、データバックフィル。",
+    why: "本番DBのスキーマ変更は最もリスクの高い運用作業。ロールバック不能な変更でサービス停止を引き起こした事例は多い。",
+    tradeoffs: [
+      {
+        title: "Expand/Contract vs Big Bang",
+        desc: "Expand/Contract は段階的で安全だが工数が倍かかる。Big Bangは高速だが失敗時の影響大。",
+      },
+      {
+        title: "Online DDL",
+        desc: "MySQL/PostgreSQL のOnline DDLはロックを最小化するが、大テーブルでは数時間かかることも。",
+      },
+    ],
+    badCode: `-- 危険: カラムリネーム（即座に全アプリが壊れる）
+ALTER TABLE users RENAME COLUMN name TO full_name;
+-- 旧コードは SELECT name FROM users でエラー
+
+-- 危険: NOT NULL 制約を一発で追加
+ALTER TABLE orders ADD COLUMN status TEXT NOT NULL;
+-- 既存行が制約違反 → マイグレーション失敗`,
+    goodCode: `-- Expand/Contract パターン（4段階）
+
+-- Phase 1: Expand - 新カラム追加（NULL許容）
+ALTER TABLE users ADD COLUMN full_name TEXT;
+
+-- Phase 2: Migrate - 既存データのバックフィル
+UPDATE users SET full_name = name WHERE full_name IS NULL;
+-- バッチで実行: LIMIT 1000 ずつ
+
+-- Phase 3: コード変更 - 両方のカラムを読み書き
+-- 新コードデプロイ後、新カラムのみ使用に切替
+
+-- Phase 4: Contract - 旧カラム削除
+ALTER TABLE users DROP COLUMN name;
+-- 全サービスが新カラムのみ使用を確認後`,
+    interviewPoints: [
+      {
+        point: "ロールバック可能なマイグレーション",
+        detail:
+          "各フェーズが独立してロールバック可能。Phase 4（旧カラム削除）は十分な待機期間の後に実行。",
+      },
+      {
+        point: "バックフィルの負荷管理",
+        detail:
+          "一度に全行を更新せず、バッチ処理+スリープで本番DBの負荷を制御。LIMIT/OFFSETまたはカーソルベースで進行。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Expand/Contract パターンの4段階は: 1.____ 2.____ 3.____ 4.____",
+        blanks: [
+          "新カラム追加（Expand）",
+          "既存データのバックフィル",
+          "コードを新カラムに切替",
+          "旧カラム削除（Contract）",
+        ],
+        explanation:
+          "各段階が独立してデプロイ・ロールバック可能。最も重要なのは Phase 2 と 3 の間で十分な検証期間を設けること。旧カラム削除は最後に行い、戻れなくなるリスクを最小化する。",
+      },
+    ],
+  },
+
+  "ops-structured-logging": {
+    id: "ops-structured-logging",
+    section: "practical",
+    title: "構造化ログと可観測性",
+    tag: "実務頻出",
+    summary: "slog による構造化ログの設計、ログレベル運用、ELK/Loki 連携。",
+    why: "構造化ログはグレップではなくクエリで検索可能。アラート設定やダッシュボード構築の基盤になる。",
+    tradeoffs: [
+      {
+        title: "JSON vs Text ログ",
+        desc: "JSONは機械処理向き（ELK, Loki）。Textは人間が読みやすい（開発時）。環境変数で切替可能にするのがベスト。",
+      },
+      {
+        title: "ログレベルの粒度",
+        desc: "多すぎるログはストレージとパフォーマンスを圧迫。少なすぎると障害調査で情報不足。",
+      },
+    ],
+    badCode: `// 構造化されていないログ
+log.Printf("user %s ordered %d items for $%.2f", userID, count, total)
+// パース困難、検索しにくい
+
+// エラーログにスタックトレースなし
+log.Printf("failed to process order: %v", err)
+// どこで何が起きたか不明`,
+    goodCode: `// slog で構造化ログ
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelInfo,
+}))
+
+logger.Info("order created",
+    slog.String("user_id", userID),
+    slog.Int("item_count", count),
+    slog.Float64("total", total),
+    slog.String("trace_id", traceID),
+)
+// → {"time":"...","level":"INFO","msg":"order created","user_id":"u123","item_count":3,"total":99.99,"trace_id":"abc"}
+
+// リクエストスコープのログ
+func middleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        logger := slog.With(
+            slog.String("request_id", r.Header.Get("X-Request-ID")),
+            slog.String("method", r.Method),
+            slog.String("path", r.URL.Path),
+        )
+        ctx := context.WithValue(r.Context(), loggerKey{}, logger)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}`,
+    interviewPoints: [
+      {
+        point: "slog の Handler パターン",
+        detail:
+          "slog.Handler インターフェースでカスタムハンドラを実装可能。複数出力先への分岐、フィールドのフィルタリング、サンプリングなど。",
+      },
+      {
+        point: "ログとトレースの関連付け",
+        detail:
+          "trace_id をログに含めることで、分散トレーシングツールとログを横断検索できる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "slog.With() は ____ をプリセットした新しいロガーを返す。slog.NewJSONHandler で出力は ____ 形式になる",
+        blanks: ["共通のフィールド（属性）", "JSON"],
+        explanation:
+          "slog.With() で request_id 等を付与すると、以降のログ出力に自動で含まれる。JSONハンドラは機械処理に適した構造化出力を生成し、ELK や Loki でクエリ可能になる。",
+        playgroundUrl: "https://go.dev/play/p/qjGPm9E2mEK",
+      },
+    ],
+  },
+
+  "ops-container-best-practices": {
+    id: "ops-container-best-practices",
+    section: "practical",
+    title: "Go アプリのコンテナ最適化",
+    tag: "実務頻出",
+    summary:
+      "マルチステージビルド、scratch / distroless イメージ、ヘルスチェック、シグナルハンドリング。",
+    why: "Go のシングルバイナリ特性を活かしたコンテナ最適化により、イメージサイズ 10-50MB、起動時間 < 1秒を実現できる。",
+    tradeoffs: [
+      {
+        title: "scratch vs distroless",
+        desc: "scratch は最小（数MB）だがデバッグツールなし。distroless はやや大きいがCA証明書等が含まれ実用的。",
+      },
+      {
+        title: "CGO_ENABLED=0",
+        desc: "純Go で完結するならCGO無効で完全静的リンク。SQLite等C依存がある場合はmusl libc を使用。",
+      },
+    ],
+    badCode: `# 悪い Dockerfile（1GB超）
+FROM golang:1.22
+COPY . .
+RUN go build -o app .
+CMD ["./app"]
+# Go ツールチェイン + ソースコード全体がイメージに含まれる`,
+    goodCode: `# マルチステージビルド（最終イメージ ~15MB）
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build \\
+    -ldflags="-s -w" -o /app/server .
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /app/server /server
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/server"]
+
+# docker-compose.yml でヘルスチェック
+healthcheck:
+  test: ["CMD", "/server", "-health"]
+  interval: 10s
+  timeout: 3s
+  retries: 3`,
+    interviewPoints: [
+      {
+        point: "PID 1 問題",
+        detail:
+          "コンテナ内の PID 1 プロセスはシグナルのデフォルトハンドラが無効。Goで signal.Notify を明示的に設定するか、tini を使う。",
+      },
+      {
+        point: '-ldflags="-s -w"',
+        detail:
+          "デバッグ情報とDWARFシンボルを削除してバイナリサイズを約30%削減。本番ではデバッグ不要なら推奨。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Go のマルチステージビルドでは ____ ステージでビルドし、最終ステージは ____ や ____ を使い最小イメージにする",
+        blanks: ["golang:x.xx-alpine（ビルダー）", "scratch", "distroless"],
+        explanation:
+          "ビルダーステージにはGoツールチェインと依存があるが、最終ステージにはバイナリのみをコピー。distrolessはCA証明書やタイムゾーンデータを含みTLS通信が可能。",
+      },
+    ],
+  },
+
+  "ops-error-monitoring": {
+    id: "ops-error-monitoring",
+    section: "practical",
+    title: "エラー監視とアラート設計",
+    tag: "実務頻出",
+    summary:
+      "Sentry/Datadog でのエラー収集、アラート閾値設計、On-Call ローテーション。",
+    why: "エラーの早期検知と適切なアラートがサービスの信頼性を決定づける。アラート疲れを防ぎながら重大な問題を見逃さない設計が重要。",
+    tradeoffs: [
+      {
+        title: "アラート感度",
+        desc: "高感度は早期検知できるが誤報が増えアラート疲れを招く。低感度は見逃しリスク。",
+      },
+      {
+        title: "Error Rate vs Error Count",
+        desc: "Rate（割合）はトラフィック変動に強い。Count（絶対数）は低トラフィック時に鈍感。",
+      },
+    ],
+    badCode: `// 全エラーを同列にアラート
+if err != nil {
+    alertPagerDuty("ERROR: " + err.Error())
+    // 404 Not Found でも深夜に叩き起こされる
+}
+
+// アラート閾値なし
+if errorCount > 0 {
+    sendAlert() // 1件のエラーでもアラート → アラート疲れ
+}`,
+    goodCode: `// エラーの重要度分類
+type Severity int
+const (
+    SevLow    Severity = iota // ログのみ
+    SevMedium                  // Slack通知
+    SevHigh                    // PagerDuty
+    SevCritical                // 即座にエスカレーション
+)
+
+// Error Rate ベースのアラート（Prometheus）
+// 5xx率が5%を超えたら Warning、10%超で Critical
+// ALERT: http_error_rate > 0.05 for 5m → Warning
+// ALERT: http_error_rate > 0.10 for 2m → Critical
+
+// Sentry でのエラーグルーピング
+sentry.WithScope(func(scope *sentry.Scope) {
+    scope.SetTag("service", "order-api")
+    scope.SetLevel(sentry.LevelError)
+    scope.SetUser(sentry.User{ID: userID})
+    sentry.CaptureException(err)
+})`,
+    interviewPoints: [
+      {
+        point: "SLO/SLI/SLA の関係",
+        detail:
+          "SLI: 測定指標（レイテンシ、エラー率）。SLO: 内部目標（99.9%可用性）。SLA: 顧客契約（違反で金銭的ペナルティ）。Error Budget = 1 - SLO。",
+      },
+      {
+        point: "アラートの4ゴールデンシグナル",
+        detail:
+          "Latency（レイテンシ）、Traffic（トラフィック）、Errors（エラー率）、Saturation（飽和度）。Google SRE が提唱。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "SRE の 4 Golden Signals は何か？それぞれ何を監視するか？",
+        blanks: [
+          "Latency: リクエストの応答時間（p50, p95, p99）",
+          "Traffic: リクエスト数/秒（QPS/RPS）",
+          "Errors: 失敗したリクエストの割合（5xx率）",
+          "Saturation: リソースの使用率（CPU, メモリ, ディスク, コネクション）",
+        ],
+        explanation:
+          "4つの指標を組み合わせてサービスの健全性を判断する。例えばLatencyの p99 が悪化しているがErrorsは低い場合、DBのスロークエリやキャッシュミスが疑われる。",
+      },
+    ],
+  },
+
+  // ── 面接対策（追加） ──────────────────────────────────
+
+  "interview-system-design": {
+    id: "interview-system-design",
+    section: "interview",
+    title: "システム設計面接の回答フレームワーク",
+    tag: "面接",
+    summary:
+      "RESHADED フレームワーク: Requirements → Estimation → Storage → High-level → API → Detailed → Evaluation → Deployment",
+    why: "システム設計面接は45分で大規模システムの設計を議論する。構造化されたアプローチがないと時間切れで核心に辿り着けない。",
+    tradeoffs: [
+      {
+        title: "広さ vs 深さ",
+        desc: "全体を浅く設計するか、重要部分を深掘りするか。面接官の質問に応じて切り替える。",
+      },
+      {
+        title: "理想 vs 現実的",
+        desc: "完璧なアーキテクチャより、制約下での妥当な判断を示す方が評価される。",
+      },
+    ],
+    badCode: `// いきなり実装から始める
+"まずGoでHTTPサーバーを書いて..."
+// → 要件の確認なし、見積もりなし
+
+// 全部を同列に説明する
+"ユーザー認証はJWTで、DBはPostgresで、キャッシュはRedisで..."
+// → 設計判断の理由がない、優先度が不明`,
+    goodCode: `// RESHADED フレームワーク
+
+// R - Requirements（2-3分）
+"機能要件: URL短縮の作成・リダイレクト。非機能: 1日1億リダイレクト、99.9%可用性"
+
+// E - Estimation（2-3分）
+"1億/日 ≈ 1200 QPS。読み:書き = 100:1。データ: 500byte × 365日 × 1億 ≈ 18TB/年"
+
+// S - Storage（5分）
+"URL → hash のマッピングはKVストアが最適。DynamoDB or Redis + 永続層"
+
+// H - High-level（5分）
+"Client → LB → API Server → Cache → DB. 書き込みは非同期でDBへ"
+
+// A - API（3分）
+"POST /api/shorten {url, expiry} → {short_url}
+ GET /:hash → 301 Redirect"
+
+// D - Detailed Design（15分）
+"hash生成: Base62エンコード。衝突回避: カウンタベース or UUID"
+
+// E - Evaluation（5分）
+"ボトルネック: リダイレクトのDB lookup → Redis キャッシュで解決"`,
+    interviewPoints: [
+      {
+        point: "Back-of-the-envelope estimation",
+        detail:
+          "QPS、ストレージ、帯域幅を概算。1日=86400秒≈10^5、1年≈3×10^7秒。10^6 QPS はかなり大規模。",
+      },
+      {
+        point: "トレードオフを明示する",
+        detail:
+          "「Aの方がBより良い」ではなく「Aはこの点で優れるがこの点でBに劣る。今回はこの理由でAを選ぶ」と説明。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "システム設計面接で「URL短縮サービスを設計して」と言われた。最初の5分で何をすべきか？",
+        blanks: [
+          "機能要件の確認（作成・リダイレクト・カスタムURL・有効期限）",
+          "非機能要件の確認（想定QPS、可用性、レイテンシ要件）",
+          "概算（データ量、読み書き比率、必要なストレージ）",
+        ],
+        explanation:
+          "面接官が期待するのは「要件を自分から確認しに行く姿勢」。曖昧な要件のまま設計を始めると、後で方向転換が必要になり時間を浪費する。",
+      },
+    ],
+  },
+
+  "interview-concurrency-patterns": {
+    id: "interview-concurrency-patterns",
+    section: "interview",
+    title: "並行処理の面接問答集",
+    tag: "面接",
+    summary:
+      "goroutine リーク・race condition・deadlock の検出と対処を面接で説明できるようにする。",
+    why: "Go エンジニアの面接では並行処理の深い理解が問われる。実務経験に基づいた具体的な回答が評価される。",
+    tradeoffs: [
+      {
+        title: "channel vs mutex",
+        desc: "channel はデータの所有権移転。mutex は共有データの保護。「Don't communicate by sharing memory; share memory by communicating.」",
+      },
+      {
+        title: "sync.WaitGroup vs errgroup",
+        desc: "WaitGroup はシンプルな完了待ち。errgroup はエラー伝播+コンテキストキャンセル付き。実務では errgroup が多い。",
+      },
+    ],
+    badCode: `// 面接で避けるべき曖昧な回答
+"goroutineは軽量スレッドです" // → 何が軽量か説明できていない
+"channelを使えば安全です" // → なぜ安全か説明できていない
+"mutexでロックすれば大丈夫" // → デッドロックの可能性は？`,
+    goodCode: `// 面接で期待される具体的回答
+
+// Q: goroutine リークをどう防ぐ？
+"3つの原則:
+ 1. goroutine を起動する側がライフサイクルを管理する
+ 2. context.WithCancel でキャンセル伝播
+ 3. select + ctx.Done() で終了シグナルを受信
+
+ 具体例: HTTPリクエストのタイムアウトで
+ context.WithTimeout を使い、超過時にgoroutineが
+ 確実に終了するようにする"
+
+// Q: race condition の検出方法は？
+"go test -race で race detector を有効化。
+ CI で全テストに -race フラグを付ける。
+ 検出された場合は channel による所有権移転か
+ sync.Mutex で保護。atomic は単一変数の場合のみ"`,
+    interviewPoints: [
+      {
+        point: "goroutine のコスト感覚",
+        detail:
+          "初期スタック2KB、100万goroutineで約2GB。contextスイッチはns単位。OSスレッドの1/1000のコスト。",
+      },
+      {
+        point: "select の挙動",
+        detail:
+          "複数の case が同時に ready の場合はランダム選択。default 節があると non-blocking。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "errgroup.Group は内部で ____ を使い、最初のエラーで ____ をキャンセルする。Wait() は ____ を返す",
+        blanks: [
+          "sync.WaitGroup + context",
+          "context",
+          "最初のエラー（non-nil error）",
+        ],
+        explanation:
+          "errgroup は WaitGroup + エラー伝播 + コンテキストキャンセルのセット。errgroup.WithContext(ctx) で作成し、Go() でgoroutineを追加。1つでもエラーが返ると ctx がキャンセルされ、他の goroutine にも通知される。",
+        playgroundUrl: "https://go.dev/play/p/XMdSRpKpfQf",
+      },
+    ],
+  },
+
+  "interview-database-design": {
+    id: "interview-database-design",
+    section: "interview",
+    title: "DB設計の面接問答集",
+    tag: "面接",
+    summary:
+      "インデックス設計・N+1問題・トランザクション分離レベルを面接で語れるようにする。",
+    why: "バックエンド面接ではDB設計の知識が必須。パフォーマンス最適化の実体験を具体的に語れると評価が高い。",
+    tradeoffs: [
+      {
+        title: "正規化 vs 非正規化",
+        desc: "正規化はデータの整合性を保つ。非正規化は読み取り性能を上げるが更新時の整合性維持が複雑。",
+      },
+      {
+        title: "楽観ロック vs 悲観ロック",
+        desc: "楽観ロック(version列)は競合が少ない場合に高性能。悲観ロック(SELECT FOR UPDATE)は競合が多い場合に確実。",
+      },
+    ],
+    badCode: `// N+1 問題
+users, _ := db.Query("SELECT * FROM users")
+for users.Next() {
+    var u User
+    users.Scan(&u.ID, &u.Name)
+    // ユーザーごとにクエリ → N+1
+    orders, _ := db.Query("SELECT * FROM orders WHERE user_id = ?", u.ID)
+}`,
+    goodCode: `// JOIN で1クエリに
+rows, _ := db.Query(\`
+    SELECT u.id, u.name, o.id, o.total
+    FROM users u
+    LEFT JOIN orders o ON u.id = o.user_id
+    WHERE u.active = true
+\`)
+
+// またはバッチロード
+userIDs := collectIDs(users)
+orders, _ := db.Query(
+    "SELECT * FROM orders WHERE user_id IN (?)", userIDs)
+// user_id でグルーピングしてマッピング
+
+// 楽観ロック
+result, _ := db.Exec(\`
+    UPDATE products SET stock = stock - 1, version = version + 1
+    WHERE id = ? AND version = ?\`, productID, currentVersion)
+if result.RowsAffected() == 0 {
+    return ErrConflict // リトライ
+}`,
+    interviewPoints: [
+      {
+        point: "B-Tree インデックスの仕組み",
+        detail:
+          "ソート済みのツリー構造。検索はO(log n)。複合インデックスはカラム順が重要（左端から使用される）。",
+      },
+      {
+        point: "トランザクション分離レベル",
+        detail:
+          "Read Uncommitted < Read Committed < Repeatable Read < Serializable。PostgreSQLデフォルトはRead Committed。MySQLデフォルトはRepeatable Read。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "複合インデックス INDEX(a, b, c) で WHERE a=1 AND c=3 のクエリは ____ のみインデックスを使用する。WHERE a=1 AND b=2 AND c=3 は ____",
+        blanks: ["a", "a, b, c 全て（フルインデックス利用）"],
+        explanation:
+          "複合インデックスは左端から順に使用される（Leftmost Prefix Rule）。a を飛ばして b, c だけでは使えない。a, c の場合は a のみ使用し c はフィルタリング。",
+      },
+      {
+        type: "concept" as const,
+        difficulty: "hard" as const,
+        code: "楽観ロックと悲観ロックの使い分けを実例で説明してください",
+        blanks: [
+          "楽観ロック: ECサイトの商品閲覧→購入（競合少ない場合にversion列でチェック）",
+          "悲観ロック: 銀行の口座振替（競合が多い場合にSELECT FOR UPDATE）",
+          "楽観ロックはリトライコストが低い場合に有利、悲観ロックは確実性が必要な場合に有利",
+        ],
+        explanation:
+          "楽観ロックはcommit時に競合検出→リトライ。悲観ロックは取得時にロック→他をブロック。Webアプリの一般的なCRUDは楽観ロック、金融系の残高操作は悲観ロックが適切。",
+      },
+    ],
+  },
+
+  "interview-api-design": {
+    id: "interview-api-design",
+    section: "interview",
+    title: "API 設計の面接問答集",
+    tag: "面接",
+    summary:
+      "REST vs gRPC、ページネーション、べき等性、バージョニングの面接回答。",
+    why: "API設計は面接の頻出トピック。設計判断の理由を論理的に説明できるかが問われる。",
+    tradeoffs: [
+      {
+        title: "REST vs gRPC",
+        desc: "REST は汎用・ブラウザ親和性高い。gRPC は高性能・型安全・ストリーミング対応。内部通信は gRPC、外部向けは REST が多い。",
+      },
+      {
+        title: "Cursor vs Offset ページネーション",
+        desc: "Offset は実装シンプルだがページ飛ばし以外で非効率。Cursor はスケーラブルだが「N ページ目に飛ぶ」ができない。",
+      },
+    ],
+    badCode: `// 動詞をURLに入れる
+POST /api/getUser       // GET を使うべき
+POST /api/deleteOrder   // DELETE を使うべき
+
+// ページネーションなし
+GET /api/users          // 100万件返す
+
+// べき等でないPOST
+POST /api/payments      // リトライで二重課金`,
+    goodCode: `// RESTful 設計
+GET    /api/v1/users/:id        // リソース取得
+POST   /api/v1/users            // リソース作成
+PUT    /api/v1/users/:id        // リソース全体更新
+PATCH  /api/v1/users/:id        // リソース部分更新
+DELETE /api/v1/users/:id        // リソース削除
+
+// Cursor ページネーション
+GET /api/v1/orders?cursor=abc123&limit=20
+→ { "data": [...], "next_cursor": "def456", "has_more": true }
+
+// べき等な決済API（Idempotency Key）
+POST /api/v1/payments
+Headers: Idempotency-Key: uuid-123
+// 同じキーで再送しても1回しか課金されない`,
+    interviewPoints: [
+      {
+        point: "HTTPメソッドのべき等性",
+        detail:
+          "GET, PUT, DELETE はべき等。POST は非べき等。PATCH は実装次第。べき等性はリトライの安全性を保証する。",
+      },
+      {
+        point: "APIバージョニング戦略",
+        detail:
+          "URL（/v1/）、ヘッダ（Accept: application/vnd.api+json;version=1）、パラメータ。URLが最も明確で広く使われる。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "HTTP メソッドで ____ と ____ と ____ はべき等（同じリクエストを複数回送っても結果が同じ）。____ は非べき等",
+        blanks: ["GET", "PUT", "DELETE", "POST"],
+        explanation:
+          "べき等性は分散システムでのリトライを安全にする重要な性質。POST は呼ぶたびにリソースが作成される（非べき等）。POST をべき等にするには Idempotency-Key ヘッダ等でクライアント側で制御する。",
+      },
+    ],
+  },
+
+  "interview-go-philosophy": {
+    id: "interview-go-philosophy",
+    section: "interview",
+    title: "Go の設計思想と他言語との比較",
+    tag: "面接",
+    summary:
+      "Go がなぜ継承を持たないか、エラーを値として扱う理由、シンプルさの哲学。",
+    why: "「なぜGoを選ぶのか」「Goの長所・短所は？」は面接の定番質問。言語設計の哲学を理解しているかが問われる。",
+    tradeoffs: [
+      {
+        title: "シンプルさ vs 表現力",
+        desc: "Go はシンプルさを選んだ。generics 導入も慎重だった。結果としてコードの読みやすさと保守性が高い。",
+      },
+      {
+        title: "明示的 vs 暗黙的",
+        desc: "Go はエラーの明示的チェック、明示的インターフェース実装を要求。冗長だが意図が明確。",
+      },
+    ],
+    badCode: `// Java 的な例外ベースのエラー処理を Go に持ち込む
+func process() {
+    defer func() {
+        if r := recover(); r != nil {
+            // 全てのエラーを recover で捕捉
+            // → エラーの種類を区別できない
+        }
+    }()
+    panic("something went wrong") // 例外的状況でないのに panic
+}`,
+    goodCode: `// Go 的なエラー処理: エラーは値
+func process(ctx context.Context) error {
+    data, err := fetchData(ctx)
+    if err != nil {
+        return fmt.Errorf("fetch data: %w", err) // エラーをラップして文脈を追加
+    }
+    result, err := transform(data)
+    if err != nil {
+        return fmt.Errorf("transform: %w", err)
+    }
+    return save(ctx, result)
+}
+
+// Go 的な composition（継承ではなく埋め込み）
+type Logger struct { /* ... */ }
+type Server struct {
+    Logger     // 埋め込み = has-a 関係
+    db *sql.DB
+}
+// Server は Logger のメソッドを「借りる」だけ
+// is-a 関係ではない → 柔軟`,
+    interviewPoints: [
+      {
+        point: "Go に generics が遅れて入った理由",
+        detail:
+          "Go チームは「正しい設計」が見つかるまで追加しなかった。Type Parameters Proposal は2018年から検討、2022年にGo 1.18で採用。シンプルさへのこだわり。",
+      },
+      {
+        point: "Go vs Rust の使い分け",
+        detail:
+          "Go: ネットワークサービス、マイクロサービス、CLIツール。Rust: システムプログラミング、パフォーマンスクリティカル、メモリ安全性が最重要。Go はGCあり・開発速度重視、Rust はGCなし・安全性重視。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "Go がクラスの継承ではなく構造体の埋め込み（composition）を採用した理由は？",
+        blanks: [
+          "継承は深い階層を作りやすく、変更の影響範囲が広がる（脆い基底クラス問題）",
+          "Composition は必要な機能だけを組み合わせ、結合度が低い",
+          "Go の implicit interface satisfaction と組み合わせることで、柔軟なポリモーフィズムを実現",
+        ],
+        explanation:
+          "Go の「Composition over Inheritance」は Gang of Four のデザイン原則を言語レベルで実現。Interface は implicit（宣言なしで満たせる）なので、依存関係の逆転も容易。大規模コードベースでの保守性が高い。",
+      },
+    ],
+  },
+
+  "interview-production-incident": {
+    id: "interview-production-incident",
+    section: "interview",
+    title: "本番障害の対応経験を語る",
+    tag: "面接",
+    summary:
+      "STAR フレームワークで本番障害対応を構造的に語る方法。検知→切り分け→対応→再発防止。",
+    why: "行動面接（Behavioral Interview）では過去の障害対応経験が頻出。構造的に語れるかでシニアリティが判断される。",
+    tradeoffs: [
+      {
+        title: "速度 vs 正確さ",
+        desc: "障害対応では仮の対処（ロールバック等）を素早く行い、根本原因分析は後から行うのが原則。",
+      },
+      {
+        title: "個人 vs チーム",
+        desc: "面接では個人の貢献を語りつつ、チームワークを示すバランスが重要。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"サーバーが落ちたので再起動しました"
+// → 何を検知し、何が原因で、どう再発防止したか不明
+
+"よく覚えていませんが、なんとか直しました"
+// → 構造化されていない → 分析力を示せていない`,
+    goodCode: `// STAR フレームワークで回答
+
+// Situation（状況）
+"金曜17時、注文APIのレイテンシが p99 で5秒に悪化。
+ Datadog のアラートで検知。影響範囲は全ユーザーの注文処理。"
+
+// Task（役割）
+"On-Call エンジニアとして一次対応を担当。
+ SRE チームと協力して30分以内の復旧を目指した。"
+
+// Action（行動）
+"1. Grafana でDBコネクションプールの枯渇を確認
+ 2. slow query log で未インデックスのクエリを特定
+ 3. 即座にDBの max_connections を一時的に引き上げ（応急）
+ 4. 問題クエリにインデックスを追加してデプロイ（根本対処）"
+
+// Result（結果）
+"応急処置で20分で復旧、根本対処は翌営業日に完了。
+ Postmortem を作成し、slow query の自動アラートを追加。
+ 以降、同種の問題は0件。"`,
+    interviewPoints: [
+      {
+        point: "Postmortem の書き方",
+        detail:
+          "Timeline（時系列）→ Impact（影響）→ Root Cause（根本原因）→ Action Items（再発防止策、担当者、期限付き）。Blameless（個人を責めない）文化が前提。",
+      },
+      {
+        point: "On-Call のベストプラクティス",
+        detail:
+          "Runbook（手順書）の整備、エスカレーションパス、影響範囲の判断基準。15分ルール（15分で解決しなければエスカレーション）。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "Postmortem に必ず含めるべき4つの要素は？",
+        blanks: [
+          "Timeline: いつ何が起きたかの時系列",
+          "Impact: 影響を受けたユーザー数・期間・金額",
+          "Root Cause: 根本原因（対症療法ではなく）",
+          "Action Items: 再発防止策（担当者・期限付き）",
+        ],
+        explanation:
+          "Blameless Postmortem はチームの学習機会。「誰が悪い」ではなく「システムの何が脆弱だったか」に焦点を当てる。Action Items は必ず期限と担当者を設定し、追跡する。",
+      },
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -4871,13 +6669,14 @@ export const SECTIONS: Section[] = [
       "design-middleware",
       "design-functional-options",
       "design-di",
+      "deep-context-internals",
     ],
   },
   {
     id: "concurrency",
     title: "並行処理",
     icon: "⇌",
-    description: "goroutine / channel / worker pool",
+    description: "goroutine / channel / worker pool / GMP",
     topicIds: [
       "concurrency-goroutine-channel",
       "concurrency-worker-pool",
@@ -4885,19 +6684,22 @@ export const SECTIONS: Section[] = [
       "concurrency-sync",
       "concurrency-rate-limit",
       "concurrency-pipeline",
+      "deep-scheduler",
+      "deep-memory-model",
     ],
   },
   {
     id: "performance",
     title: "パフォーマンス",
     icon: "⚡",
-    description: "benchmark / pprof / memory",
+    description: "benchmark / pprof / memory / 本番プロファイリング",
     topicIds: [
       "perf-benchmark",
       "perf-pprof",
       "perf-memory",
       "perf-string",
       "perf-gc-tuning",
+      "ops-profiling-production",
     ],
   },
   {
@@ -4930,6 +6732,12 @@ export const SECTIONS: Section[] = [
       "interview-gc",
       "interview-interface",
       "interview-error-handling",
+      "interview-system-design",
+      "interview-concurrency-patterns",
+      "interview-database-design",
+      "interview-api-design",
+      "interview-go-philosophy",
+      "interview-production-incident",
     ],
   },
   {
@@ -4944,7 +6752,14 @@ export const SECTIONS: Section[] = [
     title: "実務パターン",
     icon: "⊕",
     description: "実務で頻出するパターンとベストプラクティス",
-    topicIds: ["practical-slog", "practical-http-client"],
+    topicIds: [
+      "practical-slog",
+      "practical-http-client",
+      "ops-graceful-migration",
+      "ops-structured-logging",
+      "ops-container-best-practices",
+      "ops-error-monitoring",
+    ],
   },
   {
     id: "summary",
@@ -4967,6 +6782,25 @@ export const SECTIONS: Section[] = [
       "advanced-cache",
       "advanced-zero-downtime",
       "advanced-event-driven",
+      "deep-reflect-unsafe",
+      "deep-generics-advanced",
+      "deep-interface-internals",
+    ],
+  },
+  {
+    id: "system-design",
+    title: "システム設計",
+    icon: "◇",
+    description: "分散システム・スケーラビリティ・面接対策",
+    topicIds: [
+      "sysdesign-api-gateway",
+      "sysdesign-load-balancing",
+      "sysdesign-caching-strategy",
+      "sysdesign-database-scaling",
+      "sysdesign-message-queue",
+      "sysdesign-rate-limiting",
+      "sysdesign-distributed-tracing",
+      "sysdesign-circuit-breaker-detail",
     ],
   },
 ];
@@ -5016,6 +6850,30 @@ export const RECOMMENDED: Recommendation[] = [
     id: "advanced-event-driven",
     reason: "Outboxパターンで分散トランザクションを解決",
   },
+  {
+    id: "sysdesign-caching-strategy",
+    reason: "キャッシュ設計はパフォーマンスの要",
+  },
+  {
+    id: "sysdesign-message-queue",
+    reason: "非同期処理とサービス間疎結合の基盤",
+  },
+  {
+    id: "deep-scheduler",
+    reason: "GMP モデルを理解して並行処理を最適化",
+  },
+  {
+    id: "interview-system-design",
+    reason: "システム設計面接のフレームワークを習得",
+  },
+  {
+    id: "ops-container-best-practices",
+    reason: "Go + Docker の最適なビルドパターン",
+  },
+  {
+    id: "interview-production-incident",
+    reason: "障害対応経験を面接で構造的に語る",
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -5035,4 +6893,6 @@ export const TAG_BADGE: Record<string, string> = {
   標準: "badge-ghost",
   NG: "badge-error",
   まとめ: "badge-primary",
+  上級: "badge-error",
+  面接: "badge-accent",
 };

@@ -14,6 +14,7 @@ export interface Quiz {
   code: string; // question text or code with ____
   blanks: string[];
   explanation: string;
+  playgroundUrl?: string; // Go Playground link to run the code
 }
 
 /** Derive difficulty from quiz when not explicitly set */
