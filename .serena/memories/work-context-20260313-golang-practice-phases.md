@@ -1,44 +1,46 @@
 # golang-practice 学習アプリ ブラッシュアップ進捗 (2026-03-13)
 
-## 完了フェーズ
+## 全フェーズ完了 - main に全マージ済み
 
-### Phase 1-A: 検索 + ブックマーク (main済み)
+### Phase 1-A: 検索 + ブックマーク
 - src/search.tsx: Cmd+K グローバル検索モーダル
 - src/icons.tsx: SearchIcon, BookmarkIcon, BookmarkOutlineIcon追加
 - src/section-view.tsx: トピックカードにブックマーク機能
-- src/app.tsx: サイドバーブックマーク一覧
 
-### Phase 1-B: SRS + 苦手分析 + 学習カレンダー (main済み)
-- src/srs.ts: SM-2アルゴリズム実装 (SRSCard, processResult, recordActivity, getStreak, getCalendarData)
+### Phase 1-B: SRS + 苦手分析 + 学習カレンダー
+- src/srs.ts: SM-2アルゴリズム (SRSCard, processResult, recordActivity, getStreak, getCalendarData)
 - src/dashboard.tsx: 学習カレンダーヒートマップ、セクション別正答率、苦手トピック
 - src/random-quiz.tsx: SRS due問題を優先出題
 
-### Phase 2: クイズ強化 (main済み)
+### Phase 2: クイズ強化
 - src/daily-challenge.tsx: 日付シードによる決定論的日次チャレンジ5問
-- src/types.ts: difficulty フィールド + getQuizDifficulty() ヘルパー
-- src/random-quiz.tsx: 難易度フィルター chips (easy/medium/hard)、30秒タイマーモード
+- src/types.ts: difficulty + getQuizDifficulty() ヘルパー
+- src/random-quiz.tsx: 難易度フィルターchips, 30秒タイマーモード
 - src/icons.tsx: CalendarIcon, TimerIcon追加
-- src/app.tsx: 今日のチャレンジ サイドバー + ルーティング
 
-### Phase 3: PWA + データ管理 + アニメーション (main済み)
-- vite.config.ts: vite-plugin-pwa追加 (SW + manifest自動生成)
-- public/icon.svg: Go branded SVGアイコン
-- src/data-manager.tsx: JSON export/import (全localStorage keys)
-- src/dashboard.tsx: DataManager統合
-- src/index.css: page-enter アニメーション追加
-- src/app.tsx: key={currentSection} でページ遷移アニメーション
-- index.html: PWA meta tags (theme-color, apple-mobile-web-app-*)
+### Phase 3: PWA + データ管理 + アニメーション
+- vite.config.ts: vite-plugin-pwa (SW + manifest)
+- public/icon.svg: Go teal SVGアイコン
+- src/data-manager.tsx: JSON export/import
+- src/index.css: page-enter アニメーション
 
-## 未実装
-- Phase 4: Cloudflare Workers + D1 + GitHub OAuth + 進捗同期
+### Phase 4: Cloudflare Workers + D1 + GitHub OAuth + 同期
+- workers/src/index.ts: HTTPルーター (OAuth + sync PUT/GET)
+- workers/src/auth.ts: HMAC-SHA256 JWT (Web Crypto API)
+- workers/schema.sql: D1スキーマ (users + progress)
+- wrangler.toml: Workers + D1バインディング設定
+- src/sync.ts: APIクライアント
+- src/sync-ui.tsx: SyncButton (ドロップダウン: 保存/取得/ログアウト)
+
+## デプロイ手順 (Phase 4)
+1. D1作成: `wrangler d1 create go-study-db`
+2. スキーマ適用: `wrangler d1 execute go-study-db --file=workers/schema.sql`
+3. シークレット設定: `wrangler secret put GITHUB_CLIENT_ID` など
+4. デプロイ: `wrangler deploy`
+5. フロントエンド: `.env` に `VITE_API_URL=https://go-study-api.<user>.workers.dev`
 
 ## 主要アーキテクチャ
-- SPA: Hono/jsx/dom (Preact-like)
-- スタイル: Tailwind CSS v4 + DaisyUI v5 (light theme, Go teal primary)
-- ビルド: Vite v6 + TypeScript
+- SPA: Hono/jsx/dom + Tailwind v4 + DaisyUI v5 (light theme, Go teal primary)
+- ビルド: Vite v6 + TypeScript + vite-plugin-pwa
 - 永続化: localStorage (go-study-completed/notes/quiz-scores/bookmarks/srs/log)
-
-## Gitブランチ戦略
-- main: 現在Phase 3まで完了
-- feature/quiz-enhancements: Phase 2 (merge済み)
-- feature/pwa-export-animations: Phase 3 (merge済み)
+- バックエンド: Cloudflare Workers + D1 + GitHub OAuth + JWT (HttpOnly cookie)
