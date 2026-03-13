@@ -38,6 +38,29 @@ async function getUser(req: Request, env: Env): Promise<JWTPayload | null> {
   return verifyJWT(token, env.JWT_SECRET);
 }
 
+// ─── Go Playground compile proxy ─────────────────────────
+
+async function handleCompile(req: Request): Promise<Response> {
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const body = (await req.json()) as { source?: string; withVet?: boolean };
+  if (!body?.source) return json({ error: "Missing source" }, 400);
+
+  const form = new URLSearchParams();
+  form.set("version", "2");
+  form.set("body", body.source);
+  if (body.withVet) form.set("withVet", "true");
+
+  const res = await fetch("https://go.dev/_/compile", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+
+  const data = await res.json();
+  return json(data);
+}
+
 // ─── Route handlers ──────────────────────────────────────
 
 async function handleGithubLogin(req: Request, env: Env): Promise<Response> {
@@ -198,6 +221,8 @@ export default {
       res = await handleGetUser(req, env);
     } else if (path === "/api/auth/logout" && method === "POST") {
       res = await handleLogout(req, env);
+    } else if (path === "/api/compile" && method === "POST") {
+      res = await handleCompile(req);
     } else if (path === "/api/sync" && method === "GET") {
       res = await handleGetSync(req, env);
     } else if (path === "/api/sync" && method === "PUT") {

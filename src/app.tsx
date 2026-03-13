@@ -11,8 +11,10 @@ import {
   SearchIcon,
   BookmarkIcon,
   CalendarIcon,
+  TerminalIcon,
 } from "./icons";
 import { DailyChallenge } from "./daily-challenge";
+import { Playground } from "./playground";
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
 import { SyncButton } from "./sync-ui";
@@ -40,6 +42,7 @@ function useLocalStorage<T>(
 
 export function App() {
   const [currentSection, setCurrentSection] = useState("dashboard");
+  const [playgroundCode, setPlaygroundCode] = useState<string | undefined>();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [completed, setCompleted] = useLocalStorage<Record<string, boolean>>(
     "go-study-completed",
@@ -127,9 +130,17 @@ export function App() {
 
   const navigate = useCallback((id: string) => {
     setCurrentSection(id);
+    if (id !== "playground") setPlaygroundCode(undefined);
     // Scroll main content to top on navigation
     document.querySelector("main")?.scrollTo(0, 0);
     // Close sidebar on mobile after navigation
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }, []);
+
+  const openPlayground = useCallback((code: string) => {
+    setPlaygroundCode(code);
+    setCurrentSection("playground");
+    document.querySelector("main")?.scrollTo(0, 0);
     if (window.innerWidth < 768) setSidebarOpen(false);
   }, []);
 
@@ -247,6 +258,18 @@ export function App() {
                   </span>
                 </button>
               </li>
+              {/* Playground */}
+              <li>
+                <button
+                  class={`flex justify-between w-full ${currentSection === "playground" ? "active" : ""}`}
+                  onClick={() => navigate("playground")}
+                >
+                  <span class="flex items-center gap-2">
+                    <TerminalIcon size={13} class="opacity-70 shrink-0" />
+                    <span>Playground</span>
+                  </span>
+                </button>
+              </li>
               {/* Bookmarks */}
               {Object.keys(bookmarks).some((id) => bookmarks[id]) && (
                 <>
@@ -354,6 +377,8 @@ export function App() {
                   }
                 }}
               />
+            ) : currentSection === "playground" ? (
+              <Playground initialCode={playgroundCode} />
             ) : activeSection ? (
               <SectionView
                 section={activeSection}
@@ -364,6 +389,7 @@ export function App() {
                 onNoteChange={updateNote}
                 onToggleBookmark={toggleBookmark}
                 onNavigate={navigate}
+                onOpenPlayground={openPlayground}
               />
             ) : null}
           </div>

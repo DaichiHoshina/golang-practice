@@ -21,12 +21,18 @@ hljs.registerLanguage("go", go);
 // Note: dangerouslySetInnerHTML is safe here because input is only
 // hardcoded Go code strings from data.ts, never user input.
 
+// Note: dangerouslySetInnerHTML usage below is SAFE because the input is only
+// hardcoded Go code strings from data.ts (never user input). highlight.js
+// output is trusted and does not contain executable scripts.
+
 function CodeBlock({
   code,
   variant,
+  onTry,
 }: {
   code: string;
   variant: "good" | "bad";
+  onTry?: (code: string) => void;
 }) {
   const cls = variant === "good" ? "code-good" : "code-bad";
   const label =
@@ -41,7 +47,18 @@ function CodeBlock({
 
   return (
     <div class="my-3">
-      <div class={`text-xs font-bold mb-1.5 ${label.color}`}>{label.text}</div>
+      <div class={`flex items-center justify-between mb-1.5`}>
+        <span class={`text-xs font-bold ${label.color}`}>{label.text}</span>
+        {onTry && (
+          <button
+            class="btn btn-ghost btn-xs gap-1 text-primary"
+            onClick={() => onTry(code)}
+          >
+            <PlayIcon size={10} />
+            Try
+          </button>
+        )}
+      </div>
       <pre class={`code-block ${cls}`}>
         <code class="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} />
       </pre>
@@ -368,6 +385,7 @@ function TopicCard({
   onNavigate,
   bookmarked,
   onToggleBookmark,
+  onOpenPlayground,
 }: {
   topic: Topic;
   completed: boolean;
@@ -377,6 +395,7 @@ function TopicCard({
   onNavigate: (id: string) => void;
   bookmarked: boolean;
   onToggleBookmark: () => void;
+  onOpenPlayground?: (code: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
@@ -470,8 +489,16 @@ function TopicCard({
           {/* Code Examples */}
           {topic.badCode && (
             <div>
-              <CodeBlock code={topic.badCode} variant="bad" />
-              <CodeBlock code={topic.goodCode} variant="good" />
+              <CodeBlock
+                code={topic.badCode}
+                variant="bad"
+                onTry={onOpenPlayground}
+              />
+              <CodeBlock
+                code={topic.goodCode}
+                variant="good"
+                onTry={onOpenPlayground}
+              />
             </div>
           )}
 
@@ -523,6 +550,7 @@ interface SectionViewProps {
   onNoteChange: (id: string, val: string) => void;
   onToggleBookmark: (id: string) => void;
   onNavigate: (id: string) => void;
+  onOpenPlayground?: (code: string) => void;
 }
 
 export function SectionView({
@@ -534,6 +562,7 @@ export function SectionView({
   onNoteChange,
   onToggleBookmark,
   onNavigate,
+  onOpenPlayground,
 }: SectionViewProps) {
   const topics = section.topicIds.map((id) => TOPICS[id]).filter(Boolean);
   const doneCount = topics.filter((t) => completed[t.id]).length;
@@ -574,6 +603,7 @@ export function SectionView({
             onNavigate={onNavigate}
             bookmarked={!!bookmarks[topic.id]}
             onToggleBookmark={() => onToggleBookmark(topic.id)}
+            onOpenPlayground={onOpenPlayground}
           />
         ))}
       </div>
