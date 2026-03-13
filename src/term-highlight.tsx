@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "hono/jsx/dom";
+import { useState, useEffect, useCallback, createPortal } from "hono/jsx/dom";
 import { GLOSSARY } from "./glossary";
 
 // ─── Term detection setup ─────────────────────────────────
@@ -147,7 +147,11 @@ export function HighlightedText({ text }: { text: string }) {
         }
         return <span key={i}>{part}</span>;
       })}
-      {popup && <TermPopup info={popup} onClose={() => setPopup(null)} />}
+      {popup &&
+        createPortal(
+          <TermPopup info={popup} onClose={() => setPopup(null)} />,
+          document.body,
+        )}
     </span>
   );
 }
