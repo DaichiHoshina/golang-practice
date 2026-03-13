@@ -19,12 +19,25 @@ export function SyncButton({ onPullComplete }: Props) {
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [pullPrompt, setPullPrompt] = useState(false);
 
   // Don't render if no API URL configured
   if (!API_URL) return null;
 
   useEffect(() => {
-    fetchUser().then(setUser);
+    fetchUser().then((u) => {
+      setUser(u);
+      // On first login, check if there's remote data to pull
+      if (u && !localStorage.getItem("gs_synced_once")) {
+        import("./sync").then(({ pullSync: ps }) =>
+          ps()
+            .then((applied) => {
+              if (applied) setPullPrompt(true);
+            })
+            .catch(() => {}),
+        );
+      }
+    });
   }, []);
 
   const handleSync = useCallback(async () => {
@@ -86,6 +99,27 @@ export function SyncButton({ onPullComplete }: Props) {
         </svg>
         ログイン
       </button>
+    );
+  }
+
+  // Pull-applied toast
+  if (pullPrompt) {
+    return (
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-success font-semibold">
+          クラウドから復元しました
+        </span>
+        <button
+          class="btn btn-success btn-xs"
+          onClick={() => {
+            localStorage.setItem("gs_synced_once", "1");
+            setPullPrompt(false);
+            location.reload();
+          }}
+        >
+          OK
+        </button>
+      </div>
     );
   }
 

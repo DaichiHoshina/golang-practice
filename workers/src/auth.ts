@@ -85,9 +85,9 @@ export function getToken(request: Request): string | null {
 }
 
 export function tokenCookie(token: string, maxAge: number): string {
-  return `gs_token=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+  return `gs_token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`;
 }
 
 export function clearCookie(): string {
-  return "gs_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+  return "gs_token=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0";
 }

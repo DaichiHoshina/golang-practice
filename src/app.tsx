@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "hono/jsx/dom";
+import { useState, useEffect, useCallback, useRef } from "hono/jsx/dom";
 import { SECTIONS, TOPICS, TOTAL_TOPICS } from "./data";
 import { Dashboard } from "./dashboard";
 import { SectionView } from "./section-view";
@@ -16,6 +16,7 @@ import { DailyChallenge } from "./daily-challenge";
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
 import { SyncButton } from "./sync-ui";
+import { pushSync, API_URL } from "./sync";
 
 function useLocalStorage<T>(
   key: string,
@@ -59,6 +60,22 @@ export function App() {
   const [srsData, setSrsData] = useLocalStorage<SRSStore>("go-study-srs", {});
   const [studyLog, setStudyLog] = useLocalStorage<StudyLog>("go-study-log", {});
   const [searchOpen, setSearchOpen] = useState(false);
+  const autoSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced auto-sync: push to cloud 30s after any quiz answer
+  const scheduleAutoSync = useCallback(() => {
+    if (!API_URL) return;
+    if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
+    autoSyncTimer.current = setTimeout(() => {
+      pushSync().catch(() => {});
+    }, 30_000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
+    };
+  }, []);
 
   // Desktop: default sidebar open
   useEffect(() => {
@@ -96,8 +113,9 @@ export function App() {
         [key]: processResult(prev[key], result),
       }));
       setStudyLog((prev: StudyLog) => recordActivity(prev, result));
+      scheduleAutoSync();
     },
-    [],
+    [scheduleAutoSync],
   );
 
   const toggleBookmark = useCallback((id: string) => {
