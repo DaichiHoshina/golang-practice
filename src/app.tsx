@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "hono/jsx/dom";
-import { SECTIONS, TOTAL_TOPICS } from "./data";
+import { SECTIONS, TOPICS, TOTAL_TOPICS } from "./data";
 import { Dashboard } from "./dashboard";
 import { SectionView } from "./section-view";
 import { RandomQuiz } from "./random-quiz";
 import type { QuizScores } from "./random-quiz";
-import { HomeIcon, DiceIcon } from "./icons";
+import { SearchModal } from "./search";
+import { HomeIcon, DiceIcon, SearchIcon, BookmarkIcon } from "./icons";
 
 function useLocalStorage<T>(
   key: string,
@@ -41,10 +42,27 @@ export function App() {
     "go-study-quiz-scores",
     {},
   );
+  const [bookmarks, setBookmarks] = useLocalStorage<Record<string, boolean>>(
+    "go-study-bookmarks",
+    {},
+  );
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Desktop: default sidebar open
   useEffect(() => {
     if (window.innerWidth >= 768) setSidebarOpen(true);
+  }, []);
+
+  // Cmd+K / Ctrl+K to open search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const toggleComplete = useCallback((id: string) => {
@@ -64,6 +82,13 @@ export function App() {
     },
     [],
   );
+
+  const toggleBookmark = useCallback((id: string) => {
+    setBookmarks((prev: Record<string, boolean>) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  }, []);
 
   const navigate = useCallback((id: string) => {
     setCurrentSection(id);
@@ -121,8 +146,16 @@ export function App() {
             <span class="text-xs opacity-80">{progressPct}%</span>
           </div>
         </div>
-        <div class="navbar-end">
-          <span class="text-xs opacity-80">
+        <div class="navbar-end gap-1">
+          <button
+            class="btn btn-ghost btn-sm btn-square"
+            onClick={() => setSearchOpen(true)}
+            aria-label="検索 (Cmd+K)"
+            title="検索 (Cmd+K)"
+          >
+            <SearchIcon size={15} />
+          </button>
+          <span class="text-xs opacity-80 ml-1">
             {completedCount}/{TOTAL_TOPICS}
           </span>
         </div>
@@ -166,6 +199,33 @@ export function App() {
                   </span>
                 </button>
               </li>
+              {/* Bookmarks */}
+              {Object.keys(bookmarks).some((id) => bookmarks[id]) && (
+                <>
+                  <li class="menu-title mt-1 mb-0">
+                    <span class="text-[0.6rem] opacity-80 flex items-center gap-1">
+                      <BookmarkIcon size={9} class="text-warning" />
+                      ブックマーク
+                    </span>
+                  </li>
+                  {Object.keys(bookmarks)
+                    .filter((id) => bookmarks[id])
+                    .map((id) => {
+                      const topic = TOPICS[id];
+                      if (!topic) return null;
+                      return (
+                        <li key={id}>
+                          <button
+                            class="flex w-full text-left"
+                            onClick={() => navigate(topic.section)}
+                          >
+                            <span class="truncate text-xs">{topic.title}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                </>
+              )}
               {/* Divider */}
               <li class="menu-title mt-1 mb-0">
                 <span class="text-[0.6rem] opacity-80">セクション</span>
@@ -207,6 +267,14 @@ export function App() {
           </aside>
         )}
 
+        {/* Search Modal */}
+        {searchOpen && (
+          <SearchModal
+            onClose={() => setSearchOpen(false)}
+            onNavigate={navigate}
+          />
+        )}
+
         {/* Main Content */}
         <main class="flex-1 overflow-y-auto">
           <div class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -223,8 +291,10 @@ export function App() {
                 section={activeSection}
                 completed={completed}
                 notes={notes}
+                bookmarks={bookmarks}
                 onToggleComplete={toggleComplete}
                 onNoteChange={updateNote}
+                onToggleBookmark={toggleBookmark}
                 onNavigate={navigate}
               />
             ) : null}

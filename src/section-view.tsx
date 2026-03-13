@@ -8,6 +8,8 @@ import {
   MessageSquareIcon,
   ArrowLeftRightIcon,
   PencilIcon,
+  BookmarkIcon,
+  BookmarkOutlineIcon,
 } from "./icons";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
@@ -341,6 +343,8 @@ function TopicCard({
   note,
   onNoteChange,
   onNavigate,
+  bookmarked,
+  onToggleBookmark,
 }: {
   topic: Topic;
   completed: boolean;
@@ -348,6 +352,8 @@ function TopicCard({
   note: string;
   onNoteChange: (v: string) => void;
   onNavigate: (id: string) => void;
+  bookmarked: boolean;
+  onToggleBookmark: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
@@ -397,13 +403,29 @@ function TopicCard({
               <HighlightedText text={topic.summary} />
             </p>
           </div>
-          <span class="opacity-60 shrink-0 mt-0.5">
-            {expanded ? (
-              <ChevronUpIcon size={14} />
-            ) : (
-              <ChevronDownIcon size={14} />
-            )}
-          </span>
+          <div class="flex items-center gap-1 shrink-0 mt-0.5">
+            <button
+              class={`p-1 rounded transition-colors ${bookmarked ? "text-warning" : "text-base-content/30 hover:text-warning/70"}`}
+              onClick={(e: Event) => {
+                e.stopPropagation();
+                onToggleBookmark();
+              }}
+              aria-label={bookmarked ? "ブックマーク解除" : "ブックマーク追加"}
+            >
+              {bookmarked ? (
+                <BookmarkIcon size={12} />
+              ) : (
+                <BookmarkOutlineIcon size={12} />
+              )}
+            </button>
+            <span class="opacity-60">
+              {expanded ? (
+                <ChevronUpIcon size={14} />
+              ) : (
+                <ChevronDownIcon size={14} />
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -473,8 +495,10 @@ interface SectionViewProps {
   section: Section;
   completed: Record<string, boolean>;
   notes: Record<string, string>;
+  bookmarks: Record<string, boolean>;
   onToggleComplete: (id: string) => void;
   onNoteChange: (id: string, val: string) => void;
+  onToggleBookmark: (id: string) => void;
   onNavigate: (id: string) => void;
 }
 
@@ -482,8 +506,10 @@ export function SectionView({
   section,
   completed,
   notes,
+  bookmarks,
   onToggleComplete,
   onNoteChange,
+  onToggleBookmark,
   onNavigate,
 }: SectionViewProps) {
   const topics = section.topicIds.map((id) => TOPICS[id]).filter(Boolean);
@@ -523,6 +549,8 @@ export function SectionView({
             note={notes[topic.id] || ""}
             onNoteChange={(v: string) => onNoteChange(topic.id, v)}
             onNavigate={onNavigate}
+            bookmarked={!!bookmarks[topic.id]}
+            onToggleBookmark={() => onToggleBookmark(topic.id)}
           />
         ))}
       </div>
