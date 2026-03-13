@@ -190,6 +190,22 @@ if errors.As(err, &myErr) {
         explanation:
           "具体型の変数を経由して return すると、interface に型情報が残り non-nil になる。直接 return nil とすれば untyped nil が返り、err != nil は false になる。",
       },
+      {
+        type: "concept" as const,
+        code: "interface 変数どうしの == 比較で panic が起きるのはどんな場合か？",
+        blanks: [
+          "interface の動的型が比較不能（slice, map, func）な場合",
+          "コンパイル時ではなく実行時に panic",
+        ],
+        explanation:
+          "interface{} に slice や map を入れて == 比較すると runtime panic になる。比較するなら reflect.DeepEqual か、型アサーション後に比較する。",
+      },
+      {
+        code: "type Stringer interface { String() string }\ntype MyStr string\nfunc (m ____) String() string { return string(m) }\n// T か *T どちらが Stringer を実装？",
+        blanks: ["MyStr"],
+        explanation:
+          "value receiver で定義すると T（MyStr）と *T（*MyStr）の両方が interface を実装する。pointer receiver で定義した場合は *T のみ実装。",
+      },
     ],
   },
 
@@ -274,6 +290,22 @@ func processFile(path string) error {
         explanation:
           "defer func() { ... }() のクロージャ形式にすると、関数終了時の変数値を参照できる。defer fmt.Println(time.Since(start)) だと start は登録時の値になってしまう。",
       },
+      {
+        code: "defer は ____ 順に実行される。ファイルを2つ開く場合 defer f1.Close() → defer f2.Close() の順に登録すると、実行は ____ → ____ の順",
+        blanks: ["LIFO（後入れ先出し）", "f2.Close()", "f1.Close()"],
+        explanation:
+          "defer はスタック方式で積まれ、関数リターン時に逆順に実行される。リソースを取得した順に close するための自然な仕組み。",
+      },
+      {
+        type: "concept" as const,
+        code: "panic が発生した場合、その goroutine の defer は実行されるか？",
+        blanks: [
+          "実行される（goroutine のスタックを遡りながら全 defer が実行）",
+          "recover() を defer 内で呼ぶと panic を捕捉できる",
+        ],
+        explanation:
+          "panic 時も defer は確実に実行される。recover() は defer 内でのみ有効で、HTTP サーバーでの panic 回復に使われる。ただし panic を隠蔽するのは危険で、必要な場合のみ使う。",
+      },
     ],
   },
 
@@ -350,6 +382,22 @@ func (p Point) Distance(q Point) float64 {
         blanks: ["*FileWriter", "_", "*FileWriter"],
         explanation:
           "var _ Writer = (*FileWriter)(nil) で FileWriter が Writer を満たすことをコンパイル時に検証。pointer receiver を使う場合は *FileWriter が interface を実装する。",
+      },
+      {
+        type: "concept" as const,
+        code: "同一型のメソッドで value receiver と pointer receiver を混在させてはいけない主な理由は？",
+        blanks: [
+          "interface 実装の一貫性が失われる（T は全 value receiver メソッドのみ持つ）",
+          "vet や linter が警告する",
+        ],
+        explanation:
+          "混在させると *T は全メソッドを持つが T は value receiver メソッドのみを実装する。interface 変数に T 値を代入したとき一部メソッドが使えなくなる。ルール：状態変更が1つでもあれば全部 pointer receiver で統一。",
+      },
+      {
+        code: "// 大きな struct で value receiver を使うと何が問題か？\ntype BigStruct struct { data [1024]byte }\nfunc (b ____) Process() {} // NG\nfunc (b ____) Process() {} // OK",
+        blanks: ["BigStruct", "*BigStruct"],
+        explanation:
+          "value receiver は struct 全体のコピーが発生する。[1024]byte なら毎回 1KB のコピー。pointer receiver なら 8 バイトのポインタのみ渡す。大きな struct は常に pointer receiver を選ぶ。",
       },
     ],
   },
@@ -794,6 +842,23 @@ package validator  // 外部モジュールからは import できない
         explanation:
           "Go の可視性は名前の先頭文字で決まる。internal/ ディレクトリ配下のパッケージは親ディレクトリのツリー内からしかインポートできない。",
       },
+      {
+        code: "循環 import を解消する典型的な方法は、____ でありパッケージ間の依存を ____ させる",
+        blanks: ["interface を定義したパッケージを切り出す", "逆転（DIP）"],
+        explanation:
+          "A→B→A の循環は、A が interface を定義し B がそれを実装することで A→interface、B→interface（または B implements interface）に変換できる。pkg/types や domain パッケージを中間レイヤーに置くのが実務パターン。",
+      },
+      {
+        type: "concept" as const,
+        code: "Go でパッケージ名のベストプラクティスを3つ挙げよ",
+        blanks: [
+          "短い単数名詞を使う（user, order, payment）",
+          "util/common/base/shared などの汎用名を避ける",
+          "パッケージ内の型がパッケージ名を繰り返さないようにする（user.User ○、user.UserService ×）",
+        ],
+        explanation:
+          "Go では user.User のように package名.型名 でアクセスするため、UserService より Service の方が user.Service として自然に読める。util パッケージは何でも入るブラックボックスになりやすいので機能別に分割する。",
+      },
     ],
   },
 
@@ -1049,6 +1114,12 @@ return g.Wait()`,
         explanation:
           "goroutine は初期スタック 2KB だが成長する。10万 goroutine でギガバイト単位になりうる。スケジューラの context switch コストも増加。外部 API に向けた goroutine なら rate limit 超過やコネクション枯渇が起きる。Worker Pool パターンで上限を固定し制御する。",
       },
+      {
+        code: "Worker Pool の job channel を ____ channel にすると、pool が満杯でも送り側がブロックせず即座に返る。pool のサイズは一般的に ____ の数に合わせる",
+        blanks: ["バッファ付き（buffered）", "CPU コア"],
+        explanation:
+          "バッファ付きチャネルはプロデューサーとコンシューマーの速度差を吸収するバッファリング層。CPU バウンドな処理は GOMAXPROCS（コア数）と同数のワーカーが最適。IO バウンドな処理はコア数の数倍のワーカーを設定できる（IO 待ちの間に他の goroutine が動くため）。",
+      },
     ],
   },
 
@@ -1140,6 +1211,22 @@ go http.ListenAndServe(":6060", nil)
         explanation:
           "channel の送受信でブロックしたまま close されない、context の Done() を select で監視していないのが主な原因。runtime.NumGoroutine() で goroutine 数を監視し、増加し続けていればリークの可能性がある。",
       },
+      {
+        code: "goroutine からの送信を select で安全にする:\nselect {\ncase ch <- result:\ncase ____:\n    return\n}",
+        blanks: ["<-ctx.Done()"],
+        explanation:
+          "context がキャンセルされたら送信を諦めて goroutine を終了する。これにより ch が受信されない場合に goroutine が永遠にブロックするリークを防ぐ。",
+      },
+      {
+        type: "concept" as const,
+        code: "goroutine リークをテストで自動検出するためのベストプラクティスは？",
+        blanks: [
+          "uber-go/goleak を使い TestMain で goleak.VerifyTestMain(m) を呼ぶ",
+          "各テストで defer goleak.VerifyNone(t) を追加する",
+        ],
+        explanation:
+          "goleak はテスト開始時の goroutine 数を記録し、終了時に増加した goroutine がないか検証する。CI に組み込むことでリークを早期発見できる。",
+      },
     ],
   },
 
@@ -1216,6 +1303,12 @@ func BenchmarkCompare(b *testing.B) {
         ],
         explanation:
           "b.ResetTimer() はベンチマーク関数内のセットアップコード（DB接続、データ準備等）の時間をタイマーから除外する。b.ReportAllocs() はヒープアロケーション数とバイト数を -benchmem 相当で出力。ゼロアロケーション最適化の確認に使う。",
+      },
+      {
+        code: "go test -bench=. -benchtime=____ で5秒間ベンチマークを実行。複数の実装を比較するには ____ ツールを使う",
+        blanks: ["5s", "benchstat"],
+        explanation:
+          "benchstat は複数のベンチマーク結果を統計的に比較し、改善率と信頼区間を表示するツール。使い方: go test -bench=. -count=10 > old.txt && (変更後) go test -bench=. -count=10 > new.txt && benchstat old.txt new.txt。-count=10 で測定を繰り返し統計的信頼性を高める。",
       },
     ],
   },
@@ -1300,6 +1393,12 @@ go http.ListenAndServe(":6060", nil)
         explanation:
           "CPU プロファイルはどの関数がCPU時間を消費しているかを特定（ホットパスの最適化）。ヒーププロファイルはどこでメモリを確保しているか（GC 負荷の原因）を特定。goroutine プロファイルはデッドロックやリークの調査に使う。go tool pprof でフレームグラフを確認。",
       },
+      {
+        code: "go tool pprof を Web UI で起動するには: go tool pprof -http=____ profile.out。フレームグラフで ____ が広いほど CPU 消費が多く、最適化対象となる",
+        blanks: [":8080（任意のポート）", "幅（横幅）"],
+        explanation:
+          "go tool pprof -http=:8080 でブラウザ上でフレームグラフ・ソースビュー・グラフビューを切り替えながら分析できる。top コマンドは CPU 消費上位の関数を表示。weblist コマンドはアノテーション付きのソースコードを表示し、どの行がCPUを消費しているか一目瞭然。",
+      },
     ],
   },
 
@@ -1371,6 +1470,22 @@ func encode(v any) ([]byte, error) {
         blanks: ["エスケープ", "sync.Pool", "-gcflags='-m'"],
         explanation:
           "エスケープ解析で関数外に参照が渡る変数はヒープに配置される。sync.Pool で GC 間でオブジェクトを再利用してヒープ割り当てを削減。go build -gcflags='-m' でどの変数がヒープに逃げたか確認できる。",
+      },
+      {
+        code: "string 連結を大量に行う場合、____ を使うと O(n^2) のアロケーションを O(n) に改善できる。事前に書き込み量がわかる場合は ____ で容量を確保する",
+        blanks: ["strings.Builder", "b.Grow(size)"],
+        explanation:
+          "s += other は毎回新しい文字列を確保するため O(n^2)。strings.Builder は内部 []byte に追記しループ後に一度 String() する。Grow() で事前に容量確保するとリアロケーションを最小化できる。",
+      },
+      {
+        type: "concept" as const,
+        code: "sync.Pool のオブジェクトはいつ回収されるか？どのような用途に適しているか？",
+        blanks: [
+          "GC のたびに回収される可能性がある（保持の保証なし）",
+          "一時バッファ・JSON エンコーダ・bytes.Buffer など短命な使い捨てオブジェクトに適している",
+        ],
+        explanation:
+          "sync.Pool は GC 間でのオブジェクト再利用によりアロケーション頻度を減らす。ただし GC のたびにクリアされる可能性があり、長期保存には使えない。Get() は nil を返す可能性があるので nil チェックが必要。",
       },
     ],
   },
@@ -1478,6 +1593,12 @@ tests := []struct {
         explanation:
           "t.Run('case_name', func) でサブテストにすると、失敗時に 'TestXxx/case_name' と表示され問題のケースが即座に特定できる。go test -run TestXxx/specific_case で特定ケースのみ実行も可能。t.Parallel() でサブテストを並行実行しテスト時間を短縮できる。",
       },
+      {
+        code: "テストのカバレッジを確認するには go test -coverprofile=____ を使い、HTMLレポートは go tool cover -html=____ で生成する",
+        blanks: ["cover.out", "cover.out"],
+        explanation:
+          "go test -coverprofile=cover.out ./... でプロジェクト全体のカバレッジを計測し、go tool cover -html=cover.out でブラウザで確認できる。緑: カバーされた行、赤: カバーされていない行。100%を目指す必要はないが、重要なビジネスロジックは80%以上が目安。",
+      },
     ],
   },
 
@@ -1562,6 +1683,12 @@ func (realClock) Now() time.Time { return time.Now() }`,
         explanation:
           "手書きモックは interface を実装した struct を手動で書く。メソッドが少ない interface には最もシンプル。mockgen（gomock）は interface から mock を自動生成し、メソッドの呼び出し回数・引数の検証（アサーション）ができる。10以上のメソッドや複数のモックが必要なら mockgen が効率的。",
       },
+      {
+        code: "httptest.NewRecorder() は ____ を実装した構造体で、HTTPハンドラのテストに使う。レスポンスのステータスコードは ____ で確認する",
+        blanks: ["http.ResponseWriter", "recorder.Code"],
+        explanation:
+          "httptest.NewRecorder() を ResponseWriter として渡し、ハンドラを直接呼び出す。recorder.Code でステータスコード、recorder.Body.String() でレスポンスボディを確認できる。実際にサーバーを起動する httptest.NewServer より軽量で、単体テストに最適。",
+      },
     ],
   },
 
@@ -1635,6 +1762,15 @@ func writeFile(path string, data []byte) (err error) {
         explanation:
           "エラーを無視したい場合は必ず理由をコメントで記述する（// intentionally ignored: read-only, no state change）。defer f.Close() のエラーは書き込み後でないなら無視が許容されることもあるが、書き込んでいるなら Close のエラーを確認すべき。golangci-lint の errcheck で検出できる。",
       },
+      {
+        code: 'fmt.Fprintf(w, "...") のエラーを無視するのは ____ の場合は許容される。しかし os.File への Write エラーは必ず ____ すべき',
+        blanks: [
+          "http.ResponseWriter（TCP接続断でエラーが起きても対処不能）",
+          "チェック（ディスク容量不足等の回復可能な原因があるため）",
+        ],
+        explanation:
+          "すべてのエラーをチェックすべきだが、対処できないエラーは無視するより panic やログに留めるのが現実的。HTTPレスポンスへの書き込みエラーは接続が既に切れているためハンドリング不能。ファイル書き込みは失敗すると データ損失になるため必ずチェックが必要。",
+      },
     ],
   },
 
@@ -1705,6 +1841,26 @@ func TestGetUser(t *testing.T) {
         blanks: ["テスト", "data race", "依存性注入（DI）"],
         explanation:
           "グローバル変数はテスト時に差し替えができず、goroutine から同時アクセスされると data race になる。コンストラクタ引数で依存を注入し、struct に保持するのが Go の標準的な DI パターン。",
+      },
+      {
+        type: "concept" as const,
+        code: "Go テストで t.Parallel() を呼ぶとどうなるか？グローバル変数が存在する場合のリスクは？",
+        blanks: [
+          "サブテストを並列実行させる（他の Parallel テストと同時実行）",
+          "グローバル変数に複数 goroutine が同時アクセスして data race が発生する",
+        ],
+        explanation:
+          "t.Parallel() はテストの並列化を有効にする。グローバル DB や設定が存在するとレースコンディションになる。DI で各テストに独立した依存を渡すことで並列テストが安全になる。",
+      },
+      {
+        code: "グローバル変数の代わりに ____ パターンで依存を注入する。テスト時は ____ に差し替え、本番では ____ 実装を使う",
+        blanks: [
+          "DI（Dependency Injection）",
+          "モック実装（struct）",
+          "real（本番）",
+        ],
+        explanation:
+          "グローバル DB 接続を直接使う関数はテストから差し替えができない。代わりに interface を定義し、コンストラクタ（New関数）で依存を注入することでテスト可能性が上がる。また並行テストでグローバル状態の競合も防げる。",
       },
     ],
   },
@@ -1783,6 +1939,15 @@ func safeHandler(next http.Handler) http.Handler {
         explanation:
           "panic が許容されるのは: ①プログラムの初期化で回復不能な状態（設定ファイルのパースエラー等）、②テストコードの must 関数。通常のエラー（入力値エラー、DB エラー、ネットワークエラー）は error として返す。library では絶対に panic しない（呼び出し元がリカバリできないため）。",
       },
+      {
+        code: "HTTP ハンドラ内で起動した goroutine が panic しても ____ がリカバリできない。goroutine の panic は ____ でリカバリする必要がある",
+        blanks: [
+          "net/http フレームワーク（ハンドラの外の recover は届かない）",
+          "その goroutine 内の defer recover()",
+        ],
+        explanation:
+          "net/http はハンドラの panic を recover して 500 を返すが、ハンドラ内で go func() { panic(...) }() を起動するとその goroutine の panic はプロセスをクラッシュさせる。バックグラウンド goroutine には必ず defer func() { if r := recover(); r != nil { ... } }() を先頭に書く。",
+      },
     ],
   },
 
@@ -1844,6 +2009,17 @@ func safeHandler(next http.Handler) http.Handler {
         ],
         explanation:
           "①スタックサイズ: goroutine は初期 2KB で動的成長（OS スレッドは 1〜8MB 固定）。②スケジューリング: Go ランタイムが M:N スケジューリングで goroutine を OS スレッドに多重化（OS のプリエンプションに依存しない）。③起動コスト: goroutine の起動は数マイクロ秒、OS スレッドはミリ秒単位。④通信: channel で安全にデータ受け渡し。",
+      },
+      {
+        code: "Go の GMP スケジューラで M は ____、G は ____、P は ____ を表す。GOMAXPROCS はデフォルトで ____ に設定される",
+        blanks: [
+          "OS スレッド（Machine）",
+          "goroutine",
+          "論理プロセッサ（Processor）",
+          "CPU コア数",
+        ],
+        explanation:
+          "GMP モデル: G（goroutine）はP（論理プロセッサ）に割り当てられ、PはM（OSスレッド）上で実行される。IO wait 時はPがMから外れ、別のGを実行できる。これにより少ないOSスレッドで大量のgoroutineを効率的にスケジュールできる。GOMAXPROCS=runtime.GOMAXPROCS(0) で現在の値を取得できる。",
       },
     ],
   },
@@ -1922,6 +2098,16 @@ for range requests {
         explanation:
           "Go は並行三色マーク＆スイープ GC を採用。白（未訪問）・灰色（訪問中）・黒（訪問済み）で到達可能性を判定。GC の大部分はアプリケーションと並行実行し STW（Stop The World）は数百マイクロ秒以下に抑える。Go 1.14 以降、プリエンプティブスケジューラで GC ループが詰まるバグも解消。",
       },
+      {
+        code: "GC 圧力を減らす主な手法を3つ挙げよ: 1.____ 2.____ 3.____",
+        blanks: [
+          "sync.Pool でオブジェクトを再利用",
+          "スタック割り当てを増やす（小さな struct を値渡し）",
+          "GOGC 環境変数で GC 頻度を調整（デフォルト100）",
+        ],
+        explanation:
+          "GOGC=100 はヒープが前回 GC 後の2倍になったら GC を実行する。GOGC=200 にすると GC 頻度が下がり CPU コストは減るがメモリ使用量が増える。sync.Pool はリクエストごとに確保するバッファを再利用し GC 対象のオブジェクト数を減らす。pprof のヒーププロファイルでアロケーションのホットスポットを確認する。",
+      },
     ],
   },
 
@@ -1982,6 +2168,26 @@ type UserFinder interface{
         blanks: ["暗黙的", "消費者側", "Accept interfaces, return structs"],
         explanation:
           "Go では型が interface のメソッドセットを実装していれば自動的に満たされる。利用側が必要なメソッドのみを interface に含め、実装側は具体型を返す。",
+      },
+      {
+        type: "concept" as const,
+        code: "「Accept interfaces, return structs」の原則を具体例で説明してください",
+        blanks: [
+          "引数に io.Writer を受け取ることで、os.File・bytes.Buffer・httptest.ResponseRecorder など任意の実装を受け入れられる",
+          "戻り値は *JSONWriter（具体型）にすることで、呼び出し側が具体的なメソッドにアクセスでき、インターフェースに縛られない柔軟性を得る",
+        ],
+        explanation:
+          "引数を interface にすると関数の汎用性が上がる（テスト時にモックを渡せる）。戻り値を interface にするとメソッド追加時に変更が波及するため、具体型で返して呼び出し側に判断を委ねる。",
+      },
+      {
+        code: "Go の interface は ____ 実装（Structural subtyping）。Java のように ____ キーワードで実装を宣言する必要がない。これにより ____ の依存性を排除できる",
+        blanks: [
+          "暗黙的（implicit）",
+          "implements",
+          "パッケージ間（循環依存リスクを低減）",
+        ],
+        explanation:
+          "暗黙的な interface 実装は Go の最もパワフルな機能の一つ。ライブラリの concrete 型を、ライブラリを変更せずに interface に適合させられる（レトロフィット）。例: sql.DB は io.Closer を暗黙的に実装しており、Close() を持つすべての型を同様に扱えるコードが書ける。",
       },
     ],
   },
@@ -2061,6 +2267,27 @@ func NewService(repo UserRepo, clock Clock) *Service {
         explanation:
           "暗黙的な動作（フレームワークマジック）を避け、if err != nil で明示的にエラーを処理し、1〜2メソッドの小さな interface と struct の埋め込みでシステムを合成する。",
       },
+      {
+        type: "concept" as const,
+        code: "「Clear is better than clever」を Go コードで体現する具体的な書き方を3つ挙げよ",
+        blanks: [
+          "エラーを _ で無視しない（if err != nil で毎回ハンドル）",
+          "短い変数名より説明的な名前（x より userID）",
+          "マジックナンバーより定数（3600 より time.Hour）",
+        ],
+        explanation:
+          "Go はコードの読みやすさを最優先する言語。他の人が6ヶ月後に読んで理解できるコードを書くことを意識する。レビュアーへの思いやりが Goらしいコードの基本。",
+      },
+      {
+        code: "Go の命名規則: エクスポートされる名前は ____、パッケージ名は ____、略語（URL, HTTP等）は ____",
+        blanks: [
+          "PascalCase（例: UserID）",
+          "全て小文字・短く（例: http, sync）",
+          "全て大文字（例: ServeHTTP, userID ではなく userURL）",
+        ],
+        explanation:
+          "Go の命名は簡潔さを優先。ループ変数は i, j、エラーは err、コンテキストは ctx が慣用。パッケージ名はインポートパスの末尾と一致させる。略語の大文字化（URL→URL, HTTP→HTTP, ID→ID）は Go の公式スタイルガイドに従う。",
+      },
     ],
   },
 
@@ -2117,6 +2344,23 @@ func NewService(repo UserRepo, clock Clock) *Service {
         blanks: ["具体型", "interface", "YAGNI"],
         explanation:
           "Go では必要になるまで抽象化しない。interface は後から追加できるため最初は具体型で書く。YAGNI = You Ain't Gonna Need It。3箇所以上の重複で関数に切り出す。",
+      },
+      {
+        code: "channel と mutex の使い分け: データの ____ を移転するなら channel、____ を保護するなら mutex",
+        blanks: ["所有権", "共有状態"],
+        explanation:
+          "Go のモットー「Don't communicate by sharing memory; share memory by communicating.」channel はデータの所有権を1つの goroutine から別の goroutine に移す。mutex は複数の goroutine が同じデータを安全に読み書きするための保護。カウンタや共有マップは mutex、ワークキューや完了通知は channel が自然。",
+      },
+      {
+        type: "concept" as const,
+        code: "interface を使うべき時と、使わなくて良い時の判断基準を教えてください",
+        blanks: [
+          "使うべき: テスト時に差し替える必要がある外部依存（DB、HTTP クライアント、時刻）",
+          "使うべき: 複数の実装が存在する、または将来存在する可能性が高い場合",
+          "不要: 実装が1つしかなく、テストでも差し替えない場合（YAGNI原則）",
+        ],
+        explanation:
+          "「今必要かどうか」で判断する。最初から全てを interface にすると抽象化コストが増す。Go の公式ガイド: 「Don't design with interfaces, discover them.」具体的な実装を書いてから、共通化が必要になった時に interface を抽出するのが Go らしいアプローチ。",
       },
     ],
   },
@@ -2216,6 +2460,18 @@ if v, ok := m["key"]; ok {
         explanation:
           "var m map[string]int は nil map。read は zero value を返すが write は panic。Go ランタイムは iteration 順序を意図的にランダム化している。v, ok := m[key] の ok で存在を確認しないと zero value との区別ができない。",
       },
+      {
+        code: "goroutine 間で map を安全に共有するには ____ で保護するか ____ を使う。読み取りが圧倒的に多い場合は ____ の方が高スループット",
+        blanks: ["sync.RWMutex", "sync.Map", "sync.RWMutex (RLock/RUnlock)"],
+        explanation:
+          "sync.Map は書き込みが少なく読み取りが多い場合に最適化されている。write が多い場合は RWMutex+map の方がシンプルかつ高速。Go 1.6 以降は concurrent write を自動検出してクラッシュする。",
+      },
+      {
+        code: "map から安全に値を取得する: v, ____ := m[key]。ok が false の場合、v は ____ 。存在しないキーへのアクセスは ____ しない",
+        blanks: ["ok", "ゼロ値", "panic"],
+        explanation:
+          'Go の map はカンマOKイディオムで存在確認できる。ok が false の場合 v はゼロ値（int なら 0、string なら ""、ポインタなら nil）。ただし nil map への書き込みはパニックするため、var m map[string]int ではなく m := map[string]int{} または make(map[string]int) で初期化する。',
+      },
     ],
   },
 
@@ -2311,6 +2567,19 @@ names := Map(users, func(u User) string { return u.Name })`,
         explanation:
           "YAGNI 原則で、最初は具体型で書き、重複が3箇所以上になったら Generics を導入。~int は int を underlying type に持つ全ての型を含む。slices.Sort, maps.Keys など標準ライブラリが Generics を活用している。",
       },
+      {
+        code: "func Map[T, U ____](s []T, f func(T) U) []U — この関数の型パラメータ制約は何か？なぜ comparable ではなく any か？",
+        blanks: ["any"],
+        explanation:
+          "Map 関数は要素を変換するだけで比較しないため any 制約で十分。comparable が必要なのは == 演算子を使う場合（Filter で条件比較する場合でも predicate は func(T) bool で比較は外部に委譲するため any で OK）。",
+        playgroundUrl: "https://go.dev/play/p/Oq9FY12AKCS",
+      },
+      {
+        code: "Go 1.21 で追加された slices.Contains[S ~[]E, E comparable](s S, v E) は ____ を使って要素の存在確認をする。同様に maps.____ はマップのキーを slice で返す",
+        blanks: ["線形探索（O(n)）", "Keys"],
+        explanation:
+          "Go 1.21 以降、標準ライブラリの slices/maps パッケージで Filter, Map, Contains, Keys, Values などの汎用関数が提供された。以前は golang.org/x/exp/slices や自前実装が必要だったが、標準化された。これらは generics で実装されており型安全。",
+      },
     ],
   },
 
@@ -2389,6 +2658,23 @@ func main() {
         blanks: ["signal.NotifyContext", "context.WithTimeout", "Shutdown"],
         explanation:
           "signal.NotifyContext で SIGTERM/SIGINT を受け取ると context がキャンセルされる。context.WithTimeout で猶予時間（例: 30秒）を設定し、http.Server.Shutdown(ctx) で処理中のリクエスト完了を待って停止する。",
+      },
+      {
+        type: "concept" as const,
+        code: "K8s で Pod 削除時の流れと Graceful Shutdown の関係を説明してください",
+        blanks: [
+          "SIGTERM 送信 → terminationGracePeriodSeconds 待機 → SIGKILL",
+          "アプリは SIGTERM で Shutdown() を呼び、処理中リクエスト完了を待つ",
+          "readiness probe を先に fail にして LB からトラフィックを切ることで新規リクエストが来ない状態で停止",
+        ],
+        explanation:
+          "K8s は SIGTERM→terminationGracePeriodSeconds（デフォルト30秒）→SIGKILL の順。アプリのシャットダウンタイムアウトを terminationGracePeriodSeconds より短くする（例: 25秒 vs 30秒）。preStop hook で readiness を fail にする preStop hook も有効。",
+      },
+      {
+        code: "signal.NotifyContext(ctx, syscall.SIGTERM) でシグナルを受けると、返却された ctx の ____ が閉じる。この ctx を server.Shutdown(____)に渡すとグレースフルに停止する",
+        blanks: ["Done() チャネル", "ctx（タイムアウト付きの ctx）"],
+        explanation:
+          "signal.NotifyContext は Go 1.16 で追加された便利な API。ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM); defer stop() でシグナル受信時に ctx をキャンセル。server.Shutdown に渡す ctx には別途タイムアウトを設定し（例: 25秒）、それを超えたら強制終了させる。",
       },
     ],
   },
@@ -2482,6 +2768,18 @@ handler := chain(mux, recovery, logging, auth)`,
         ],
         explanation:
           "func(next http.Handler) http.Handler で wrap して横断的関心事を追加する。外側から内側に向かって実行され、各 middleware が next.ServeHTTP を呼んで次に委譲する。",
+      },
+      {
+        code: "Middleware で context にユーザー情報を渡すには:\n// 型安全なキー\ntype ____ struct{}\nctx = context.WithValue(r.Context(), ctxKey{}, user)\n// ハンドラで取得\nuser, _ := r.Context().Value(____{}).(*User)",
+        blanks: ["ctxKey（非公開構造体型）", "ctxKey"],
+        explanation:
+          "非公開の構造体型をキーにすることで他パッケージとの衝突が防げる。string や int をキーにすると同じ文字列/数値を使う別パッケージと衝突する可能性がある。",
+      },
+      {
+        code: "ミドルウェアチェーンの実行順序: chain(A, B, C)(handler) で実際のリクエスト処理順序は ____",
+        blanks: ["A → B → C → handler → C終了 → B終了 → A終了（スタック順）"],
+        explanation:
+          "ミドルウェアはスタック構造で積まれる。chain(auth, logger, cors)(handler) の場合、auth が最初に実行され認証失敗なら後続をスキップ、認証成功なら logger, cors の順で実行されてハンドラに到達する。defer を使うと後処理が逆順になる（レスポンス処理に便利）。",
       },
     ],
   },
@@ -2591,6 +2889,12 @@ wg.Wait()`,
         explanation:
           "RWMutex は読み取り並行を許可し read-heavy（80%以上）で高スループット。write-heavy なら通常 Mutex がシンプルで overhead 小。sync.Map は key セットが安定していて read が圧倒的多数のキャッシュに適する。通常の map + RWMutex の方がパフォーマンスが良いケースも多いので benchmark で比較。",
       },
+      {
+        code: "sync.Once の Do(f) は ____ 回だけ f を実行する。複数の goroutine が同時に Do を呼んでも f は ____ 実行される。シングルトン初期化に使う",
+        blanks: ["1", "1回のみ"],
+        explanation:
+          "sync.Once は遅延初期化に使う定番パターン。var once sync.Once; once.Do(func() { db = connect() }) のように書くと、最初の呼び出しだけ接続処理が走り、以降はキャッシュされた値を使う。コンストラクタでの初期化が高コスト（DB接続等）な場合に特に有用。",
+      },
     ],
   },
 
@@ -2685,6 +2989,16 @@ for _, item := range items {
         explanation:
           "トークンバケットは一定レートでトークンを生成し、リクエストはトークンを消費する。バケットに蓄積できる上限がバーストサイズ。瞬間的なアクセス集中を許容しつつ長期的なレートを制御できる。golang.org/x/time/rate.NewLimiter(rate, burst) で実装。",
       },
+      {
+        code: "rate.Limiter の Wait(ctx) は ____ が来るまでブロックし、Allow() は ____ せずにブロックする。API クライアントには ____ が適切",
+        blanks: [
+          "トークン",
+          "ブロック（false を返す）",
+          "Wait（次のトークンまで待機）",
+        ],
+        explanation:
+          "Wait はトークンが利用可能になるまで待機するためリクエストを落とさない。Allow はすぐに bool を返すため、超過した場合は即座に 429 Too Many Requests を返すケースに使う。外部 API の呼び出し制御には Wait、受信リクエストのレート制限には Allow が適切。",
+      },
     ],
   },
 
@@ -2778,6 +3092,22 @@ s := strconv.FormatFloat(3.14, 'f', 2, 64)`,
         explanation:
           "string は不変なので + で連結するたびに新しいメモリが確保されコピーが発生する。strings.Builder は内部で []byte バッファを使い、最後に String() で1回だけ string に変換する。",
       },
+      {
+        code: 'ベンチマークで string 連結の性能を比較する方法:\nfunc BenchmarkPlus(b *testing.B) {\n    s := ""\n    for i := 0; i < ____; i++ { s += "x" }\n}\nfunc BenchmarkBuilder(b *testing.B) {\n    var sb strings.Builder\n    for i := 0; i < ____; i++ { sb.WriteString("x") }\n}',
+        blanks: ["b.N", "b.N"],
+        explanation:
+          "ベンチマーク関数は b.N 回ループするだけでよい。go test -bench=. -benchmem で ns/op と B/op（メモリ）を比較。strings.Builder は string + に比べて数倍〜数十倍高速で、メモリ確保回数も O(1) まで削減できる。",
+        playgroundUrl: "https://go.dev/play/p/qjGPm9E2mEK",
+      },
+      {
+        code: "byte スライスを string に変換する []byte → string は ____ を伴う。ゼロコピー変換には unsafe.Pointer を使う方法があるが、変換後に元スライスを変更すると ____",
+        blanks: [
+          "メモリコピー（ヒープアロケーション）",
+          "文字列の不変性が壊れる（undefined behavior）",
+        ],
+        explanation:
+          "string は Go で不変（immutable）なため、[]byte からの通常変換はコピーが必要。ホットパスでの変換コストを避けたい場合は strings.Builder や []byte のまま処理するよう設計し直すか、unsafe を慎重に使う。Go 1.20 で unsafe.SliceData/StringData が追加され、より安全な変換が可能になった。",
+      },
     ],
   },
 
@@ -2865,6 +3195,12 @@ func TestCalc(t *testing.T) {
         explanation:
           "t.Helper() を呼ぶとテスト失敗時に実際のテストコードの行番号が報告される。testify の require は失敗で即 t.FailNow()、assert は t.Fail() で後続も実行。前提条件は require、個別検証は assert が使い分けの目安。",
       },
+      {
+        code: "t.____(func() { db.Close() }) はテスト終了時に自動実行。t.Run でサブテストを作成すると ____ のクリーンアップは親テスト終了まで遅延する",
+        blanks: ["Cleanup", "子テスト（subtest）"],
+        explanation:
+          "t.Cleanup は LIFO 順で実行。サブテストが終わっても親の Cleanup はサブテスト全て完了後に実行される。テスト DBの接続やファイルのクローズに defer より Cleanup を使う方が確実。",
+      },
     ],
   },
 
@@ -2946,6 +3282,17 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
         blanks: ["今必要ないものは作るな", "1つ", "3"],
         explanation:
           "You Ain't Gonna Need It. Go は explicit を重視し、必要になるまで抽象化しない。interface は後から追加できるため、最初は具体型で書く。3箇所以上の重複で初めて関数やinterface の抽出を検討する。",
+      },
+      {
+        type: "concept" as const,
+        code: "設計がシンプルかどうか判断する実践的な問いかけを3つ挙げよ",
+        blanks: [
+          "この抽象化は今すぐ必要か、それとも将来必要になりそうなだけか？",
+          "このコードを6ヶ月後の自分（または他人）が即座に理解できるか？",
+          "テストが書きにくいなら、設計が複雑すぎるサインではないか？",
+        ],
+        explanation:
+          "過剰設計は意図は良いが結果として保守性を下げる。「今の問題を解く」にフォーカスし、拡張は必要になったタイミングで。Go のシンプルさの哲学を実践することが最高の設計判断。",
       },
     ],
   },
@@ -3032,6 +3379,16 @@ x = 0  // ineffectual assignment`,
         explanation:
           "errcheck はエラー無視、govet は Printf やタグの問題、staticcheck は非推奨 API やバグパターンを検出する。3つとも必ず有効にする。",
       },
+      {
+        code: "go vet が検出できる問題を3つ挙げよ:\n// 1. sync.Mutex をコピー → ____\n// 2. Printf の引数不一致 → ____\n// 3. unreachable code → ____",
+        blanks: [
+          "copylocks: Mutex はアドレスで使うべき（コピー禁止）",
+          "printf: フォーマット文字列と引数の型が不一致",
+          "unreachable: return の後のコードを検出",
+        ],
+        explanation:
+          "go vet は go test 実行時に自動的に走る。Mutex のコピーは並行処理バグの典型。printf の引数不一致は実行時にしか気づきにくいバグ。go vet でこれらをコンパイル時に検出できる。",
+      },
     ],
   },
 
@@ -3115,6 +3472,17 @@ type UserRepository interface {
         blanks: ["コメント", "stringer", "mockgen", "sqlc"],
         explanation:
           "//go:generate コメントで go generate ./... 実行時にツールが起動。生成コードはリポジトリにコミットするのが慣習。CI で go generate → diff チェックで生成漏れを検出。",
+      },
+      {
+        type: "concept" as const,
+        code: "sqlc を使う利点と go:generate との組み合わせを説明してください",
+        blanks: [
+          "SQL クエリを .sql ファイルで定義し、型安全な Go のインターフェースと実装コードを自動生成",
+          "手書きの sql.Scan / db.QueryRow を排除し、型ミスをコンパイル時に検出",
+          "//go:generate sqlc generate で生成を自動化し、CI で生成漏れを検出",
+        ],
+        explanation:
+          "sqlc は SQL First のアプローチ。ORM と違いSQLの制御が完全で、パフォーマンスチューニングも容易。query.sql を編集→生成→型チェックの流れでDB層を安全に管理できる。",
       },
     ],
   },
@@ -3206,6 +3574,12 @@ func process(r io.Reader) error { /* ... */ }`,
         blanks: ["is-a（継承）", "has-a（合成）", "昇格", "シャドウイング"],
         explanation:
           "struct に無名フィールドとして型を埋め込むと、そのメソッドが外側から直接呼べる。ただし埋め込まれた型の内部からは元のメソッドが呼ばれる（仮想関数ではない）。interface の埋め込みで小さな interface を合成するのも Go の定番。",
+      },
+      {
+        code: 'type Animal struct { Name string }\nfunc (a Animal) Speak() string { return a.Name }\n\ntype Dog struct { ____ } // Animal を埋め込み\n\nd := Dog{Animal: Animal{"Rex"}}\nfmt.Println(d.____()) // Animal.Speak を直接呼べる',
+        blanks: ["Animal", "Speak"],
+        explanation:
+          "struct に型名のみを書く（フィールド名なし）と埋め込みになる。埋め込まれた型のメソッドは外側の型から直接アクセスできる（メソッド昇格）。これが Go の composition の基本。",
       },
     ],
   },
@@ -3535,6 +3909,12 @@ results := fanOut(ctx, urls, 10)  // 10並列`,
         explanation:
           "各関数が <-chan T を受け取り <-chan U を返す。Fan-out は1つの channel を複数 goroutine で読む。Fan-in は sync.WaitGroup で全 worker の完了を待ち merged channel を close する。",
       },
+      {
+        code: "Pipeline で上流の channel が close されたことを下流が検知するには:\nfor v := range ____ {\n    // v を処理\n    out <- transform(v)\n}\n// range が終わると out を ____ する",
+        blanks: ["in（上流の channel）", "close"],
+        explanation:
+          "range は channel が close されると自動的にループを終了する。各ステージは入力 channel を range で読み、終わったら defer close(out) で出力 channel を close して下流に終了を伝播する。",
+      },
     ],
   },
 
@@ -3732,6 +4112,17 @@ func FuzzParseDate(f *testing.F) {
         explanation:
           "testing.F を使い FuzzXxx で定義。f.Add() でシードコーパスを追加し、f.Fuzz(func(t *testing.T, input string)) でテスト関数を定義。ランタイムが入力を自動変異させる。クラッシュは testdata/fuzz/ に保存。",
       },
+      {
+        type: "concept" as const,
+        code: "Fuzz テストが特に効果的なシナリオを3つ挙げよ",
+        blanks: [
+          "パーサー（JSON, URL, 設定ファイルなど）— 予期しない入力でのクラッシュを検出",
+          "エンコーダ/デコーダ — round-trip テストで一貫性を確認",
+          "バリデーション関数 — bypass するような入力を自動発見",
+        ],
+        explanation:
+          "Fuzz は人間が考えつかないエッジケースを機械的に発見する。特にユーザー入力を処理するコードは潜在的なバグがある。セキュリティ観点でも有効で、バッファオーバーフローやパニックを発見できる。",
+      },
     ],
   },
 
@@ -3823,6 +4214,17 @@ func init() {
         blanks: ["テスト", "不定", "暗黙的"],
         explanation:
           "init() はパッケージが import されるだけで暗黙実行される。テスト時にも実行されるため制御できない。NewDB(dsn) のように引数を受け取る明示的な初期化関数にすべき。",
+      },
+      {
+        type: "concept" as const,
+        code: "init() を使って良い場面はどれか？使ってはいけない場面は？",
+        blanks: [
+          "OK: フラグの登録（flag.Bool）、グローバルなマップの初期化（静的データ）",
+          "NG: DB接続・HTTP呼び出しなどのI/O処理（テスト時にも実行される）",
+          "NG: エラーが返せないため、失敗時に log.Fatal になりプロセスが終了する",
+        ],
+        explanation:
+          "init() は同一パッケージ内に複数書け、実行順序はソースファイルの辞書順。I/O や外部依存のある処理は init() ではなく、明示的に呼ぶ初期化関数（func Setup() error）にする。",
       },
     ],
   },
@@ -3922,6 +4324,17 @@ errs := errors.Join(err1, err2, err3)`,
         blanks: ["errors.New", "fmt.Errorf + %w", "errors.Is / errors.As"],
         explanation:
           "errors.New で sentinel error を定義。fmt.Errorf('get user: %w', err) でラップしてコンテキスト付加。errors.Is で sentinel 判定、errors.As でカスタム型の取り出し。Go 1.20+ では errors.Join で複数エラーを結合。",
+      },
+      {
+        type: "concept" as const,
+        code: "面接で「なぜ Go は例外（try-catch）ではなく戻り値でエラーを返すのか？」と聞かれたら",
+        blanks: [
+          "エラーは値：値として扱うことで compose・変換・ラップが容易",
+          "明示性：どの関数がエラーを返すか呼び出し元から一目でわかる",
+          "制御フロー：例外は暗黙的にスタックを遡り、制御フローが不明瞭になる",
+        ],
+        explanation:
+          "Go チームは例外機構を意図的に除外した。エラーを戻り値にすることで if err != nil で明示的に処理が強制され、エラーの無視が可視化される（_ での無視も explicit）。プログラムの制御フローがコードから直接読める。",
       },
     ],
   },
@@ -4955,6 +5368,17 @@ func getSession(r *http.Request) (*Session, error) {
         explanation:
           "通常のmod演算ではノード数変更で全キーの配置が変わるが、Consistent Hashingではリング上の隣接ノード間のキーだけが移動する。",
       },
+      {
+        type: "concept" as const,
+        code: "L4 と L7 ロードバランサはどんな基準で使い分けるか？",
+        blanks: [
+          "L4: TCPレベルで高速・低レイテンシ、HTTPの中身を見ない（gRPCなど任意プロトコル対応）",
+          "L7: HTTPヘッダ・URL・Cookieで細かいルーティング、SSL終端、WebSocketのアップグレード対応",
+          "一般的に外部向けは L7（Nginx/ALB）、内部サービス間は L4 か L7 を用途で選択",
+        ],
+        explanation:
+          "L4（AWS NLB, HAProxy TCP mode）は低レイテンシで任意のTCPトラフィックを扱える。L7（AWS ALB, Nginx）はHTTPを理解し、パスベースルーティングや認証オフロードが可能。マイクロサービスの内部通信はサービスメッシュ（Envoy/Istio）が L7 機能を提供する。",
+      },
     ],
   },
 
@@ -5105,6 +5529,17 @@ shardKey := hash(tenantID + userID) % numShards`,
         explanation:
           "非同期レプリケーションでは書き込み直後にレプリカを読むと古いデータが返る。重要な画面（注文完了直後の確認など）ではプライマリを読むことでユーザー体験を維持する。",
       },
+      {
+        type: "concept" as const,
+        code: "DB Sharding のシャードキー選択基準を説明してください",
+        blanks: [
+          "高カーディナリティ（値の種類が多い）: 均一分散のため",
+          "アクセスパターンに合致: クロスシャードクエリを避けるため（ユーザーIDならユーザー関連データを同シャードに集約）",
+          "ホットスポットを避ける: 時系列データを timestamp でシャードすると最新シャードに集中",
+        ],
+        explanation:
+          "シャードキーの選択はシャーディング設計の核心。変更が困難なため慎重に。tenant_id（マルチテナント）やuser_id（SNS）が典型。UUIDベースのランダムキーは均一だがクロスシャードクエリが増える。",
+      },
     ],
   },
 
@@ -5171,6 +5606,17 @@ func consume(ctx context.Context, msg Message) error {
         blanks: ["重複配信", "べき等（idempotent）"],
         explanation:
           "ブローカーがAckを受信できなかった場合（ネットワーク障害等）、メッセージを再送する。consumer側でメッセージIDによる重複チェックや、UPSERTなどのべき等操作で対処する。",
+      },
+      {
+        type: "concept" as const,
+        code: "Kafka と SQS の使い分けをする主な基準を3つ挙げよ",
+        blanks: [
+          "Kafka: メッセージの保持・再生が必要（イベントソーシング、監査ログ）",
+          "Kafka: 大量スループット（数百万msg/秒）が必要",
+          "SQS: マネージドで運用コスト低・AWS統合が必要・シンプルなキューで十分",
+        ],
+        explanation:
+          "Kafka はメッセージを設定期間保持し、複数コンシューマが独立したオフセットで読める（pub-sub + queue）。SQS はメッセージを一度読んだら削除するシンプルなキュー。Kafkaは運用コストが高い（ZooKeeper/KRaft、レプリカ管理）ためAWSではMSKやConfluentを使う。",
       },
     ],
   },
@@ -5246,6 +5692,17 @@ func isAllowed(ctx context.Context, key string, limit int, window time.Duration)
           "rate.NewLimiter(rate.Every(time.Second), 10) は毎秒10トークン補充、最大10トークン蓄積。バケットが満杯なら10リクエストを即座に処理でき、その後は毎秒10リクエストのペースに落ち着く。",
         playgroundUrl: "https://go.dev/play/p/t4MLmhKiNaJ",
       },
+      {
+        type: "concept" as const,
+        code: "Redis を使った分散レート制限で Sliding Window ログ方式を実装する際の主要操作を説明せよ",
+        blanks: [
+          "ZADD key score member: 現在タイムスタンプをスコアとして追加",
+          "ZREMRANGEBYSCORE key min max: ウィンドウ外（古い）エントリを削除",
+          "ZCARD key: 現在のウィンドウ内のリクエスト数を取得",
+        ],
+        explanation:
+          "Sorted Set を使い score=タイムスタンプで管理。パイプラインで ZREM→ZADD→ZCARD→EXPIRE をアトミックに実行。LUAスクリプトを使うとより正確なアトミック操作ができる。",
+      },
     ],
   },
 
@@ -5315,6 +5772,17 @@ tp := sdktrace.NewTracerProvider(
         explanation:
           "各Spanは開始・終了時刻、属性、ステータスを記録する。ctxに含まれるTraceIDを引き継ぐことで、異なるサービスのSpanが同一Traceにまとまる。",
       },
+      {
+        type: "concept" as const,
+        code: "Tail-based サンプリングと Head-based サンプリングの違いは？Tail-based の利点は？",
+        blanks: [
+          "Head-based: リクエスト開始時に確率でサンプリング決定（シンプルだがエラーを見逃す可能性）",
+          "Tail-based: トレース完了後に判断（エラー・スロークエリを100%保存できる）",
+          "Tail-based の欠点: トレース全体をバッファリングするためメモリコストが高い",
+        ],
+        explanation:
+          "Tail-based サンプリングは Jaeger Collector の Adaptive Sampling や OpenTelemetry Collector の Tail Sampling Processor で実装。エラーのあるリクエストや p99 を超えるリクエストを確実に保存できる。",
+      },
     ],
   },
 
@@ -5382,6 +5850,17 @@ if err != nil {
         ],
         explanation:
           "Closed で正常に通信。失敗率が閾値を超えると Open に遷移し、全リクエストを即座にエラーで返す。タイムアウト後に Half-Open で少数リクエストを試行し、成功すれば Closed に戻る。",
+      },
+      {
+        type: "concept" as const,
+        code: "Circuit Breaker の閾値設定で考慮すべき3つの指標は？",
+        blanks: [
+          "連続失敗回数（ConsecutiveFailures）: 5回連続で失敗したらOpen",
+          "エラー率（ErrorRate）: 10秒間で50%以上がエラーならOpen",
+          "タイムアウト（Timeout）: Open状態で30秒後にHalf-Open",
+        ],
+        explanation:
+          "閾値が低すぎると正常時でもOpenになる（false positive）。高すぎると障害検知が遅れる。本番では最初は保守的（閾値高め）に設定し、モニタリングしながら調整する。p99レイテンシもトリガーに含めると良い。",
       },
     ],
   },
@@ -5540,6 +6019,18 @@ once.Do(func() {
         explanation:
           "channelの送信完了は受信完了よりも前に起きることがメモリモデルで保証されている。送信前にセットした変数は受信後に確実に見える。",
       },
+      {
+        type: "concept" as const,
+        code: "sync.Once が内部で happens-before を保証するとはどういう意味か？",
+        blanks: [
+          "once.Do(f) 内の f の完了が、f の完了後に続く any goroutine の観測より前に happens",
+          "f の中でセットした変数は、once.Do から返った後の全 goroutine で確実に見える",
+          "double-checked locking パターンを安全に実現している",
+        ],
+        explanation:
+          "sync.Once は内部で atomic と Mutex を組み合わせてメモリバリアを設定する。once.Do で初期化した変数は全 goroutine から正しく見える。自前で double-checked locking を実装すると happens-before が保証されないため sync.Once を使う。",
+        playgroundUrl: "https://go.dev/play/p/2MAtNl2PXSE",
+      },
     ],
   },
 
@@ -5619,6 +6110,17 @@ func Map[T, U any](s []T, f func(T) U) []U {
           "reflect.ValueOf はインターフェースから reflect.Value を作成。ポインタなら Elem() で参照先を取得。NumField() はフィールド数。タグ情報は Type 側にあるので TypeOf() を使う。",
         playgroundUrl: "https://go.dev/play/p/7QbdU-mCi4K",
       },
+      {
+        type: "concept" as const,
+        code: "reflect を使う前に generics で代替できないか確認すべき理由は？",
+        blanks: [
+          "reflect はランタイムエラー（panic）のリスクがある（型ミスをコンパイル時に検出できない）",
+          "generics はコンパイル時に型解決され、型安全かつパフォーマンスが良い",
+          "reflect は動的な型情報が必要な場合（ORM、シリアライザ、structタグ処理）のみ使用",
+        ],
+        explanation:
+          "reflect のパニックリスクはコンパイラが検出できないため実行時に発覚する。Go 1.18+ では多くの汎用関数を generics で型安全に書ける。reflect が必要なのは「実行時に型が決まる」場面のみ（例: JSONの任意フィールドマッピング）。",
+      },
     ],
   },
 
@@ -5697,6 +6199,17 @@ func MaxBy[T any, K constraints.Ordered](s []T, key func(T) K) T {
           "constraints.Ordered は ~int | ~float64 | ~string 等すべての順序比較可能な型のunion。comparable は == のみ、Ordered は < > も使える。",
         playgroundUrl: "https://go.dev/play/p/Oq9FY12AKCS",
       },
+      {
+        type: "concept" as const,
+        code: "Generics の型制約として interface を使う場合と comparable を使う場合の違いは？また、型推論が効かないケースはどんな場合？",
+        blanks: [
+          "interface 制約はメソッドセットを制約し、comparable は == 演算子のみ保証する",
+          "型推論は返り値のみが型パラメータになる場合（例: func New[T any]() T）は効かず、明示的に指定が必要",
+          "複数の型パラメータで一方が推論できても他方が推論できない場合も明示指定が必要",
+        ],
+        explanation:
+          "型推論はほとんどのケースで機能するが、関数の引数から推論できない型パラメータは明示指定が必要。例えば json.Unmarshal 的な汎用パーサーを generics で書く場合。Decode[T any](data []byte) T は呼び出し側で Decode[MyStruct](b) と型を指定する。",
+      },
     ],
   },
 
@@ -5769,6 +6282,17 @@ defer stop()`,
           "非公開構造体型をキーにすると他パッケージからの衝突が原理的に起きない。タイムアウトは親子で短い方が適用される。子に長いタイムアウトを設定しても親の期限を超えられない。",
         playgroundUrl: "https://go.dev/play/p/TnXrwRRuePF",
       },
+      {
+        type: "concept" as const,
+        code: "context をキャンセルしないとどんな問題が起きるか？defer cancel() で防ぐ仕組みを説明してください",
+        blanks: [
+          "キャンセルしないと context とその子孫が GC されない（goroutine リーク）",
+          "タイマーや内部リソースが解放されず、メモリが徐々に増加",
+          "defer cancel() で関数終了時に確実にキャンセルが呼ばれ、context ツリーの子孫が解放される",
+        ],
+        explanation:
+          "WithCancel/WithTimeout は内部でタイマーや goroutine を確保する。cancel() を呼ばないとこれらが解放されない。慣用句：ctx, cancel := context.WithTimeout(...); defer cancel() の2行セット。",
+      },
     ],
   },
 
@@ -5840,6 +6364,17 @@ default: return 500
           "var p *MyError = nil を error に代入すると (type=*MyError, data=nil)。type フィールドが非nil なので interface の nil チェックは false を返す。これが Go の有名な nil interface の罠。",
         playgroundUrl: "https://go.dev/play/p/2MAtNl2PXSE",
       },
+      {
+        type: "concept" as const,
+        code: "型アサーション `v, ok := i.(T)` と型スイッチの使い分けは？それぞれのパフォーマンス特性は？",
+        blanks: [
+          "型アサーションは1種類の型チェックに使用。ok パターンで安全にアサーション（panic を防ぐ）",
+          "型スイッチは複数の型を分岐処理する場合に使用。可読性が高く複数 if-else の代替",
+          "型アサーションは O(1) の itab ルックアップ。型スイッチもコンパイラが最適化するが case が多いと線形スキャン",
+        ],
+        explanation:
+          "interface のメソッド呼び出しは間接参照（itab 経由）でわずかなオーバーヘッドがある。ホットパスで大量の型スイッチが必要な場合は generics への移行を検討。通常の用途では型アサーション・型スイッチのコストは無視できる。",
+      },
     ],
   },
 
@@ -5904,6 +6439,17 @@ go debugSrv.ListenAndServe()
         blanks: ["幅", "その関数自身", "子関数の呼び出し"],
         explanation:
           "flat timeが大きい関数が直接のホットスポット。cum timeが大きいが flat が小さい場合、その関数自体ではなく呼び出し先に問題がある。",
+      },
+      {
+        type: "concept" as const,
+        code: "本番で pprof を安全に取得するためのチェックリストは？",
+        blanks: [
+          "認証付きの内部向けポート（例: :6060）でのみ公開",
+          "CPUプロファイルは短時間（5-10秒）で取得。長時間はレイテンシに影響",
+          "Continuous Profiler（Pyroscope/Datadog）で常時収集し on-demand pprof への依存を減らす",
+        ],
+        explanation:
+          "pprof エンドポイントは CPU・メモリ・goroutineの詳細情報を含むためセキュリティリスク。認証なしの公開は脆弱性情報の露出になる。本番は 5-10 秒のスナップショットを取得し、常時監視は Continuous Profiler に任せる。",
       },
     ],
   },
@@ -5971,6 +6517,17 @@ ALTER TABLE users DROP COLUMN name;
         ],
         explanation:
           "各段階が独立してデプロイ・ロールバック可能。最も重要なのは Phase 2 と 3 の間で十分な検証期間を設けること。旧カラム削除は最後に行い、戻れなくなるリスクを最小化する。",
+      },
+      {
+        type: "concept" as const,
+        code: "バックフィル処理を本番DBに負荷をかけずに安全に行う方法は？",
+        blanks: [
+          "バッチサイズを小さく（1000行以下）して time.Sleep で間隔を空ける",
+          "進捗を記録し、失敗時に途中から再開できるようにする",
+          "PRIMARY KEYのカーソルを使い OFFSET/LIMIT より効率的に進む",
+        ],
+        explanation:
+          "フルテーブルスキャンを一発で行うと本番DBのIOが飽和する。カーソルベースで1000行→sleep(100ms)→次の1000行と進む。また処理時間をLong-runningトランザクションにしないよう、行ごとにコミットする。",
       },
     ],
   },
@@ -6044,6 +6601,17 @@ func middleware(next http.Handler) http.Handler {
           "slog.With() で request_id 等を付与すると、以降のログ出力に自動で含まれる。JSONハンドラは機械処理に適した構造化出力を生成し、ELK や Loki でクエリ可能になる。",
         playgroundUrl: "https://go.dev/play/p/qjGPm9E2mEK",
       },
+      {
+        type: "concept" as const,
+        code: "ログサンプリングをいつ検討すべきか？実装方法は？",
+        blanks: [
+          "高頻度エラー（毎秒1万回等）でストレージコストが問題になる場合",
+          "slog の Handler をカスタム実装し、一定時間内の同一エラーを間引く",
+          "エラー率の高低だけでなく、最初のN件は必ず記録してパターンを把握する",
+        ],
+        explanation:
+          "同一エラーを無制限に記録するとストレージコストが爆発する。ただし間引きすぎると障害調査で情報不足になる。rateLimitedHandler として、同一エラーキーで1分間に1件のみ記録、残りはカウントのみ記録する方式が実用的。",
+      },
     ],
   },
 
@@ -6110,6 +6678,17 @@ healthcheck:
         blanks: ["golang:x.xx-alpine（ビルダー）", "scratch", "distroless"],
         explanation:
           "ビルダーステージにはGoツールチェインと依存があるが、最終ステージにはバイナリのみをコピー。distrolessはCA証明書やタイムゾーンデータを含みTLS通信が可能。",
+      },
+      {
+        type: "concept" as const,
+        code: "コンテナ内 Go アプリで SIGTERM を正しく処理するための実装パターンを説明してください",
+        blanks: [
+          "signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT) でシグナルを受信",
+          "HTTPサーバーは server.Shutdown(ctx) でグレースフルシャットダウン（新規接続拒否+既存処理完了待ち）",
+          "DB接続やメッセージキューのコンシューマーも ctx.Done() を監視して安全に終了",
+        ],
+        explanation:
+          "Kubernetes は Pod 停止時に SIGTERM を送り、terminationGracePeriodSeconds（デフォルト30秒）後に SIGKILL を送る。この期間内にグレースフルシャットダウンを完了させる必要がある。Go の signal.NotifyContext が最もシンプルな実装。",
       },
     ],
   },
@@ -6188,6 +6767,12 @@ sentry.WithScope(func(scope *sentry.Scope) {
         explanation:
           "4つの指標を組み合わせてサービスの健全性を判断する。例えばLatencyの p99 が悪化しているがErrorsは低い場合、DBのスロークエリやキャッシュミスが疑われる。",
       },
+      {
+        code: 'Prometheus のアラートルールで error rate が 5% 超えたら Warning とするには: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > ____。アラート疲れを防ぐには ____ 期間の継続条件を付ける',
+        blanks: ["0.05", "for: （例: 5m）"],
+        explanation:
+          "瞬間的なエラースパイクでアラートが鳴るのを防ぐため、for 句で一定期間継続した場合のみ発火させる。Error Rate は絶対数と異なりトラフィック変動に強い。SLO に合わせて閾値を決め、Warning と Critical の2段階を設けるのがベストプラクティス。",
+      },
     ],
   },
 
@@ -6265,6 +6850,12 @@ sentry.WithScope(func(scope *sentry.Scope) {
         explanation:
           "面接官が期待するのは「要件を自分から確認しに行く姿勢」。曖昧な要件のまま設計を始めると、後で方向転換が必要になり時間を浪費する。",
       },
+      {
+        code: "「1億ユーザーのTwitter的サービス」を設計する場合: QPS 概算 = 1億 × ____ ツイート/日 ÷ 86400秒 ≈ ____。読み:書き = ____:1 なので読み取り QPS は ____",
+        blanks: ["3", "3500", "100", "35万"],
+        explanation:
+          "Back-of-the-envelope: 1億ユーザー × 3ツイート/日 = 3億ツイート/日 ÷ 86400 ≈ 3500 write QPS。読み:書き比率 100:1 なら read QPS ≈ 350,000。このスケールでは水平スケール + CDN + Read Replica が必須。面接でこの概算ができると設計の根拠が明確になる。",
+      },
     ],
   },
 
@@ -6330,6 +6921,18 @@ sentry.WithScope(func(scope *sentry.Scope) {
         explanation:
           "errgroup は WaitGroup + エラー伝播 + コンテキストキャンセルのセット。errgroup.WithContext(ctx) で作成し、Go() でgoroutineを追加。1つでもエラーが返ると ctx がキャンセルされ、他の goroutine にも通知される。",
         playgroundUrl: "https://go.dev/play/p/XMdSRpKpfQf",
+      },
+      {
+        type: "concept" as const,
+        code: "面接で「Go のデッドロックを検出・回避する方法は？」と聞かれた場合、何を答えるべきか？",
+        blanks: [
+          "go test または runtime が検出: all goroutines are asleep - deadlock!",
+          "回避策1: ロック取得の順序を全コードで統一（ロック順序の全体的な一貫性）",
+          "回避策2: タイムアウト付き channel 操作（select + time.After/ctx.Done）でブロック回避",
+          "回避策3: sync.Mutex の代わりに channel でデータを受け渡し、共有状態を排除",
+        ],
+        explanation:
+          "デッドロックは2つ以上の goroutine が互いに相手のロック解放を待つ状態。Go ランタイムはすべての goroutine がブロックしている場合を検出してパニックする。ただし一部の goroutine だけがデッドロックしている場合は検出できないため、-race フラグや goroutine のスタックトレース確認が必要。",
       },
     ],
   },
@@ -6476,6 +7079,17 @@ Headers: Idempotency-Key: uuid-123
         explanation:
           "べき等性は分散システムでのリトライを安全にする重要な性質。POST は呼ぶたびにリソースが作成される（非べき等）。POST をべき等にするには Idempotency-Key ヘッダ等でクライアント側で制御する。",
       },
+      {
+        type: "concept" as const,
+        code: "REST API の Cursor ベースページネーションの実装方法と、Offset ベースとの違いは？",
+        blanks: [
+          "Cursor: 最後に取得したレコードのID（または時刻）を next_cursor として返し、次回リクエストでそのカーソル以降を取得",
+          "Offset は LIMIT/OFFSET なので大テーブルでは遅くなる（OFFSETの分だけスキャンが必要）",
+          "Cursor は並行して追加・削除があっても一貫した結果を返せる。Offset はページ間のデータずれが起きる",
+        ],
+        explanation:
+          "SNS のタイムラインや大量データの一覧表示では Cursor ページネーションが必須。Cursor は通常 PRIMARY KEY またはソート用カラム（created_at等）の値をBase64でエンコードして返す。SQLでは WHERE id > {cursor} LIMIT 20 の形式。",
+      },
     ],
   },
 
@@ -6552,6 +7166,12 @@ type Server struct {
         explanation:
           "Go の「Composition over Inheritance」は Gang of Four のデザイン原則を言語レベルで実現。Interface は implicit（宣言なしで満たせる）なので、依存関係の逆転も容易。大規模コードベースでの保守性が高い。",
       },
+      {
+        code: "Go のエラーハンドリングが例外（try-catch）より優れている点を面接で説明するには: エラーは ____ として扱われ、関数の ____ に含まれる。これにより呼び出し側が ____ を強制される",
+        blanks: ["値（value）", "返り値（return value）", "エラー処理"],
+        explanation:
+          "try-catch は例外の発生経路を隠蔽し、ハンドリングを忘れやすい。Go の if err != nil は冗長に見えるが、エラー処理が明示的でコードの全パスが追いやすい。errors.Is/As による型安全なエラー検査、%w によるラッピングで文脈の保存もできる。",
+      },
     ],
   },
 
@@ -6623,6 +7243,18 @@ type Server struct {
         ],
         explanation:
           "Blameless Postmortem はチームの学習機会。「誰が悪い」ではなく「システムの何が脆弱だったか」に焦点を当てる。Action Items は必ず期限と担当者を設定し、追跡する。",
+      },
+      {
+        type: "concept" as const,
+        code: "本番で突然レイテンシが悪化した。何を最初にチェックし、どう切り分けるか？",
+        blanks: [
+          "Grafana/Datadog で Latency, Error Rate, Saturation の4ゴールデンシグナルを確認",
+          "デプロイ履歴と相関確認（直近のリリースが原因か？）→ 問題があればロールバック",
+          "DB: slow query log, コネクションプール使用率 / 外部API: タイムアウト率 を確認",
+          "goroutine 数急増なら goroutine leak、メモリ増加なら GC 圧迫を疑い pprof で調査",
+        ],
+        explanation:
+          "障害対応の鉄則は「まず全体を見てから絞り込む」。いきなり特定のコードを調べるのは時間の無駄。Grafana ダッシュボードで問題の開始時刻とデプロイ時刻を重ね合わせ、相関がある場合は迷わずロールバックして問題を切り離す。根本原因分析は安定化してから。",
       },
     ],
   },
