@@ -373,7 +373,7 @@ export function App() {
               )}
 
               {/* ── Skill tree sections ── */}
-              {(["basics", "skills", "advanced", "interview"] as SectionGroup[]).map((group) => {
+              {(["interview", "basics", "skills", "advanced"] as SectionGroup[]).map((group) => {
                 const groupSections = SECTIONS.filter(
                   (s) => s.id !== "dashboard" && s.group === group,
                 );

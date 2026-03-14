@@ -7260,6 +7260,718 @@ type Server struct {
   },
 
   // ═══════════════════════════════════════════════════════════
+  // 行動面接シナリオ（STAR形式）
+  // ═══════════════════════════════════════════════════════════
+
+  "behavioral-data-loss": {
+    id: "behavioral-data-loss",
+    section: "behavioral",
+    title: "データ消失インシデントへの対応",
+    tag: "行動面接",
+    summary:
+      "本番データの消失・破損インシデントに直面した経験を STAR 形式で語る。検知→影響範囲→復旧→再発防止。",
+    why: "データ消失は最も深刻なインシデントの一つ。冷静な判断力、チーム連携、再発防止の仕組み化を示せる。",
+    tradeoffs: [
+      {
+        title: "即座のロールバック vs 部分復旧",
+        desc: "全体ロールバックはデータ整合性を保つが、最新データを失う。部分復旧は複雑だが損失を最小化できる。",
+      },
+      {
+        title: "透明性 vs パニック防止",
+        desc: "ステークホルダーへの早期共有は信頼を築くが、不確実な段階での共有はパニックを招く。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"データベースが壊れたので、バックアップから復元しました"
+// → 何を判断し、何を学んだか不明
+
+"チームリーダーに任せました"
+// → 自分の貢献を示せていない
+
+"原因はよくわかりませんでしたが直りました"
+// → 分析力・再発防止の姿勢が見えない`,
+    goodCode: `// STAR で回答
+
+// Situation
+"マイグレーションスクリプトの不具合で、ユーザーの
+ プロフィールデータ約5万件が上書きされた。
+ カスタマーサポートへの問い合わせで発覚。"
+
+// Task
+"バックエンドチームのリードとして、影響範囲の特定と
+ データ復旧計画の策定・実行を担当。"
+
+// Action
+"1. 即座にマイグレーション処理を停止（被害拡大防止）
+ 2. 変更ログとWALからデータの差分を特定
+ 3. 影響を受けたレコードを特定するクエリを作成
+ 4. ステージング環境でリストアを検証後、本番に適用
+ 5. Slackでステークホルダーに30分おきに状況共有"
+
+// Result
+"4時間で全データを復旧。損失ゼロ。
+ 再発防止: マイグレーションにdry-run + diff確認ステップ追加、
+ ロールバック手順の必須化、変更前スナップショットの自動取得。"`,
+    interviewPoints: [
+      {
+        point: "インシデント時のコミュニケーション戦略",
+        detail:
+          "ステークホルダーには最初に影響範囲と復旧見込みを共有。30分ごとのステータス更新を約束する。不確実でも「調査中、X時までに次の報告」と伝える。沈黙が最悪。",
+      },
+      {
+        point: "バックアップ戦略の重要性を語る",
+        detail:
+          "Point-in-Time Recovery（PITR）、WAL アーカイブ、クロスリージョンレプリカ。RTO（復旧時間目標）とRPO（復旧ポイント目標）をビジネス要件から逆算する。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "データ消失インシデントで最初にやるべき3つのステップは？",
+        blanks: [
+          "被害拡大の防止（問題のプロセスを即停止）",
+          "影響範囲の特定（何件のデータ、どの期間、どのユーザー）",
+          "ステークホルダーへの初報（影響範囲と復旧見込み）",
+        ],
+        explanation:
+          "まず出血を止め、次に傷の大きさを測り、そして関係者に知らせる。技術的な修正に飛びつく前に、この3ステップを確実に行うことがシニアの判断。",
+      },
+    ],
+  },
+
+  "behavioral-performance": {
+    id: "behavioral-performance",
+    section: "behavioral",
+    title: "パフォーマンス改善プロジェクト",
+    tag: "行動面接",
+    summary:
+      "システムのパフォーマンス問題を特定し、計測に基づいて改善した経験。推測ではなくデータで判断する姿勢を示す。",
+    why: "パフォーマンス改善は技術力だけでなく、問題の優先順位付け・ステークホルダー説得・効果測定の能力が問われる。",
+    tradeoffs: [
+      {
+        title: "最適化の深さ vs 投資対効果",
+        desc: "p99 を 100ms 改善するのにチーム2名で2週間は妥当か？ビジネスインパクトで判断する。",
+      },
+      {
+        title: "キャッシュ追加 vs アーキテクチャ変更",
+        desc: "キャッシュは即効性があるが複雑性が増す。根本的なアーキテクチャ変更は時間がかかるが持続的。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"遅かったのでキャッシュを入れたら速くなりました"
+// → 何が遅くて、どれくらい改善したのか具体性がない
+
+"全部のクエリにインデックスを貼りました"
+// → 計測に基づかない対症療法
+
+"サーバーのスペックを上げて解決しました"
+// → スケーリング戦略として安直すぎる`,
+    goodCode: `// STAR で回答
+
+// Situation
+"ECサイトの商品一覧APIのp99レイテンシが2秒を超え、
+ モバイルアプリのUXが著しく悪化。週次でタイムアウトが
+ 300件発生し、コンバージョン率が5%低下。"
+
+// Task
+"バックエンドチームで改善PJを立ち上げ、テックリードとして
+ 原因特定から改善実施まで主導。KPIはp99を500ms以下。"
+
+// Action
+"1. pprofとDatadogでボトルネックをプロファイリング
+ 2. N+1クエリ（商品→カテゴリ→在庫を逐次取得）を特定
+ 3. JOINクエリに統合＋結果をRedisに5分キャッシュ
+ 4. ステージングで負荷テスト（k6で1000rps）→ 改善確認
+ 5. カナリアリリースで10%→50%→100%と段階的にデプロイ"
+
+// Result
+"p99: 2.1s → 180ms（91%改善）。タイムアウト: 週300件→0件。
+ コンバージョン率が3%回復（年間約800万円の売上改善）。
+ 学び: 推測で最適化せず、必ずプロファイルしてから対応。"`,
+    interviewPoints: [
+      {
+        point: "ビジネスインパクトを数字で語る",
+        detail:
+          "技術的な改善（レイテンシms）だけでなく、売上・ユーザー数・コスト削減などビジネスKPIへの影響を必ず語る。これがシニアとジュニアの差。",
+      },
+      {
+        point: "段階的デプロイの重要性",
+        detail:
+          "パフォーマンス改善が逆に問題を起こす可能性（キャッシュの整合性問題等）。カナリアリリース、Feature Flag、段階的ロールアウトで安全に検証。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "パフォーマンス改善のアプローチで「推測するな、計測せよ」の原則を面接で示すには？",
+        blanks: [
+          "pprof/Datadog等でプロファイリングし、ボトルネックを数値で特定",
+          "改善前後でベンチマーク比較（p50/p95/p99）を取り、効果を定量化",
+          "ビジネスKPIへの影響を数字で報告（売上回復額、エラー率の変化等）",
+        ],
+        explanation:
+          "シニアエンジニアは「何となく速くなった」ではなく、計測→分析→仮説→検証→効果測定のサイクルを回す。面接では各ステップを具体的な数字で語ることが重要。",
+      },
+    ],
+  },
+
+  "behavioral-tech-decision": {
+    id: "behavioral-tech-decision",
+    section: "behavioral",
+    title: "技術選定の意思決定プロセス",
+    tag: "行動面接",
+    summary:
+      "新しい技術やアーキテクチャを導入した際の意思決定プロセス。トレードオフの分析、チームへの説得、導入後の検証。",
+    why: "技術選定は「何を選んだか」より「どう判断したか」のプロセスが問われる。複数の選択肢を比較し根拠を示せるか。",
+    tradeoffs: [
+      {
+        title: "新技術の利点 vs 学習コスト",
+        desc: "チーム全員が習得するまでの期間と、それによる生産性低下を考慮する。",
+      },
+      {
+        title: "自社開発 vs OSS/SaaS 利用",
+        desc: "自社開発は柔軟だが保守コスト大。SaaS はロックインリスクがあるが立ち上がりが早い。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"最新の技術が好きなので Kubernetes を導入しました"
+// → ビジネス要件との整合性がない
+
+"流行っていたので Go にリプレースしました"
+// → 技術的判断の根拠が薄い
+
+"自分が得意な言語を選びました"
+// → チーム全体の利益を考えていない`,
+    goodCode: `// STAR で回答
+
+// Situation
+"Python monolith の処理速度とスケーラビリティが限界。
+ 月次バッチ処理が8時間を超え、SLAの12時間に迫っていた。
+ チーム6名、サービス規模は日次100万リクエスト。"
+
+// Task
+"アーキテクチャ刷新の技術選定をリード。CTO直下で
+ 3つの選択肢を比較評価し、提案書を作成。"
+
+// Action
+"1. 3案を比較（Go/Python最適化/Rust）
+ 2. 評価軸を定義:
+    - パフォーマンス（ベンチマーク実施）
+    - チーム学習コスト（6名のスキル調査）
+    - 採用市場（Go vs Rust の候補者数）
+    - エコシステム（必要なライブラリの成熟度）
+ 3. PoC を各言語で2週間実施
+ 4. ADR（Architecture Decision Record）を作成
+ 5. チーム投票 + 経営層プレゼン"
+
+// Result
+"Go を採用。バッチ処理: 8h→45min。チーム全員が3ヶ月で
+ 生産的に。ADR により後から参画したメンバーも判断の背景を
+ 理解可能。年間インフラコスト30%削減。"`,
+    interviewPoints: [
+      {
+        point: "ADR（Architecture Decision Record）の重要性",
+        detail:
+          "決定の背景・選択肢・却下理由・結果を文書化。将来「なぜこの技術を選んだのか」の説明責任を果たす。テンプレート: Title / Status / Context / Decision / Consequences。",
+      },
+      {
+        point: "PoC の進め方",
+        detail:
+          "PoC は「技術が使えるか」だけでなく、チームが生産的になれるか、運用可能か、エコシステムが十分かを検証する。期間を区切り（2週間等）、評価軸を事前に決めておく。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "技術選定で面接官が見ているポイントは？",
+        blanks: [
+          "複数の選択肢を客観的に比較したか（1択では判断力を示せない）",
+          "チーム・組織の制約を考慮したか（学習コスト、採用市場）",
+          "決定の根拠を文書化したか（ADR等で再現可能な判断プロセス）",
+        ],
+        explanation:
+          "面接官はあなたが選んだ技術が正解かどうかではなく、判断プロセスの質を見ている。トレードオフを理解し、チームとステークホルダーを巻き込んで合意形成できるかが問われる。",
+      },
+    ],
+  },
+
+  "behavioral-security": {
+    id: "behavioral-security",
+    section: "behavioral",
+    title: "セキュリティインシデントへの対応",
+    tag: "行動面接",
+    summary:
+      "セキュリティ脆弱性やインシデントに対応した経験。発見→封じ込め→修正→予防の流れで語る。",
+    why: "セキュリティは全エンジニアの責任。インシデント対応の経験はシニアの信頼性を示す。冷静さと網羅的な対応を示せるか。",
+    tradeoffs: [
+      {
+        title: "即時公開 vs 修正後公開",
+        desc: "脆弱性を即公開すると攻撃リスクが高まるが、ユーザーは自衛できる。修正後公開は安全だが対応が遅いと信頼を失う。",
+      },
+      {
+        title: "セキュリティ vs ユーザビリティ",
+        desc: "厳しいセキュリティは利便性を損なう。リスクベースで対策レベルを決める。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"SQLインジェクションが見つかったので直しました"
+// → 影響範囲の調査、情報漏洩の有無、再発防止が語れていない
+
+"セキュリティはセキュリティチームの仕事です"
+// → 当事者意識の欠如
+
+"脆弱性スキャンを入れたので大丈夫です"
+// → ツールだけでは不十分`,
+    goodCode: `// STAR で回答
+
+// Situation
+"外部セキュリティ監査で、ユーザー検索APIに
+ SQL Injection の脆弱性が発見。パラメータ化
+ クエリを使用していない箇所があった。"
+
+// Task
+"バックエンドチームのセキュリティ担当として、
+ 影響調査・修正・再発防止策の策定を担当。"
+
+// Action
+"1. 即座に該当APIへのWAFルールを追加（応急）
+ 2. アクセスログから不正なクエリの痕跡を調査
+   → 実際の攻撃の痕跡なし、データ漏洩なし
+ 3. 全APIのSQLクエリをパラメータ化クエリに統一
+ 4. sqlcの導入でSQL型安全性を保証
+ 5. CI に gosec + sqlvet の静的解析を追加
+ 6. チーム全員にセキュアコーディング研修を実施"
+
+// Result
+"24時間で応急対処完了、1週間で全API修正完了。
+ CI で SQL Injection パターンを自動検出する体制確立。
+ 以降6ヶ月で同種の脆弱性は0件。"`,
+    interviewPoints: [
+      {
+        point: "セキュリティインシデント対応の4ステップ",
+        detail:
+          "Detection（検知）→ Containment（封じ込め）→ Eradication（根絶）→ Recovery（復旧）＋ Lessons Learned（教訓）。NIST のインシデント対応フレームワークに準拠。",
+      },
+      {
+        point: "シフトレフト・セキュリティ",
+        detail:
+          "開発の早い段階でセキュリティを組み込む。CI に SAST（gosec）・DAST・依存関係スキャン（govulncheck）を統合。セキュリティレビューをPRプロセスに含める。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "セキュリティインシデント発見時、技術的修正の前にまずやるべきことは？",
+        blanks: [
+          "影響範囲の特定（漏洩データの種類、影響ユーザー数）",
+          "封じ込め（WAFルール追加、該当機能の一時停止等）",
+          "法務・コンプライアンスチームへの報告（個人情報該当の場合は通知義務あり）",
+        ],
+        explanation:
+          "技術的修正に集中しがちだが、まず被害を止め、影響範囲を特定し、必要に応じて法的義務を果たすことが優先。特に個人情報の場合、GDPR等の通知期限（72時間）がある。",
+      },
+    ],
+  },
+
+  "behavioral-mentoring": {
+    id: "behavioral-mentoring",
+    section: "behavioral",
+    title: "メンタリングとチーム貢献",
+    tag: "行動面接",
+    summary:
+      "ジュニアメンバーの育成、チームの生産性向上、技術文化の構築に貢献した経験。",
+    why: "シニアエンジニアは個人の成果だけでなく、チーム全体のレベルアップが求められる。乗数効果を示せるか。",
+    tradeoffs: [
+      {
+        title: "教える時間 vs 自分のアウトプット",
+        desc: "短期的には自分の生産性が下がるが、中長期ではチーム全体の能力が上がる。",
+      },
+      {
+        title: "標準化 vs 自律性",
+        desc: "コーディング規約やプロセスを統一すると品質は安定するが、メンバーの創意工夫を制限するリスク。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"新人にコードレビューでたくさん指摘しました"
+// → 一方的な指導、成長への貢献が見えない
+
+"自分が全部書いた方が早いので任せませんでした"
+// → チーム成長への意識がない
+
+"勉強会を開催しました"
+// → 具体的な成果が不明`,
+    goodCode: `// STAR で回答
+
+// Situation
+"チームに2名のジュニアエンジニアが加入。
+ Go経験なし、マイクロサービスも初めて。
+ チーム全体のデリバリー速度が20%低下。"
+
+// Task
+"テックリードとして、3ヶ月以内に新メンバーを
+ 戦力化し、チームの生産性を回復させる。"
+
+// Action
+"1. オンボーディングドキュメントを整備（0→1ガイド）
+ 2. ペアプログラミングを週3回実施（設計判断を共有）
+ 3. PRレビューで「なぜ」を重視（コードではなく設計意図）
+ 4. 難易度を段階的に上げるタスクアサイン
+ 5. 週次1on1で困りごとをキャッチアップ
+ 6. チーム全体でADR文化を導入（判断の透明性向上）"
+
+// Result
+"2ヶ月目で独立したPR作成が可能に。3ヶ月後は
+ チームのデリバリー速度が以前比110%に向上。
+ 新メンバーの1名がSRE関連タスクの主担当に成長。
+ オンボーディングドキュメントは全社テンプレートに採用。"`,
+    interviewPoints: [
+      {
+        point: "乗数効果（Multiplier Effect）",
+        detail:
+          "シニアの価値は個人の10倍のアウトプットではなく、チーム全員の生産性を1.5倍にすること。10人チームなら5人分の効果。面接ではこの視点を示す。",
+      },
+      {
+        point: "心理的安全性の構築",
+        detail:
+          "質問しやすい環境、失敗を責めない文化、「分からない」と言える雰囲気。Googleの研究（Project Aristotle）で最もパフォーマンスに影響する要素。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "シニアエンジニアのメンタリングで最も効果的なアプローチは？",
+        blanks: [
+          "答えを教えるのではなく、考え方のフレームワークを共有する",
+          "段階的に難易度を上げるタスクアサインで成功体験を積ませる",
+          "PRレビューでコードだけでなく設計判断の「なぜ」を議論する",
+        ],
+        explanation:
+          "魚を与えるのではなく、釣り方を教える。具体的には、設計判断のトレードオフを一緒に考え、ADRで文書化し、成功・失敗から学ぶサイクルを作る。これがシニアの乗数効果。",
+      },
+    ],
+  },
+
+  "behavioral-conflict": {
+    id: "behavioral-conflict",
+    section: "behavioral",
+    title: "技術的な意見対立の解決",
+    tag: "行動面接",
+    summary:
+      "チーム内の技術的な意見対立をどう解決したか。感情的にならず、データと原則に基づく合意形成。",
+    why: "シニアは技術的に正しいだけでなく、チームの合意を形成できるかが問われる。対立を建設的に解決する能力。",
+    tradeoffs: [
+      {
+        title: "議論の深さ vs 意思決定の速度",
+        desc: "全員が納得するまで議論すると遅くなる。Disagree and Commit の文化が有効。",
+      },
+      {
+        title: "技術的正しさ vs チームの能力",
+        desc: "理想的な設計でもチームが実装・運用できなければ意味がない。",
+      },
+    ],
+    badCode: `// 悪い面接回答
+"自分の意見が正しかったので押し通しました"
+// → チームワークを示せていない
+
+"対立を避けて相手の意見に従いました"
+// → 技術的信念がない
+
+"上司に決めてもらいました"
+// → リーダーシップの欠如`,
+    goodCode: `// STAR で回答
+
+// Situation
+"新規サービスのDB設計で、チーム内でMongoDBとPostgreSQL
+ の意見が二分。感情的な議論になりかけていた。"
+
+// Task
+"テックリードとして、チームの合意形成を主導し、
+ 根拠に基づく意思決定プロセスを確立する。"
+
+// Action
+"1. まず議論を一時停止し、評価軸を先に定義
+   - データの関係性の複雑さ
+   - トランザクション要件
+   - チームの習熟度
+   - スケーリング要件
+ 2. 各軸について両技術をスコアリング
+ 3. 小規模PoCを両方で1週間実施
+ 4. 結果を全員でレビュー、数値で比較
+ 5. ADR として意思決定を文書化"
+
+// Result
+"PostgreSQLを採用（関係性の複雑さとACID要件が決め手）。
+ MongoDB推進派も評価プロセスに納得しCommit。
+ この評価フレームワークがチームの標準になり、
+ 以降の技術選定で感情的対立がなくなった。"`,
+    interviewPoints: [
+      {
+        point: "Disagree and Commit",
+        detail:
+          "Amazon のリーダーシップ原則。自分が反対でも、チームの決定が下されたら全力でコミットする。ただし決定前は率直に反対意見を述べる義務がある。",
+      },
+      {
+        point: "合意形成のフレームワーク",
+        detail:
+          "1. 評価軸を先に合意する 2. 客観的データで比較する 3. 小規模PoCで検証する 4. 決定とその理由を文書化する。感情ではなくプロセスで解決。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "技術的な意見対立を建設的に解決するための3つのステップは？",
+        blanks: [
+          "評価軸（判断基準）をチームで先に合意する",
+          "主観ではなくデータ（PoC、ベンチマーク）で比較する",
+          "決定をADRとして文書化し、Disagree and Commitで進める",
+        ],
+        explanation:
+          "対立の多くは「何が重要か（評価軸）」の認識がずれていることが原因。評価軸を揃えれば、多くの場合は自然とデータに基づく合意が得られる。それでも割れる場合はPoCで検証する。",
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // DB/API設計面接トピック
+  // ═══════════════════════════════════════════════════════════
+
+  "interview-db-index-design": {
+    id: "interview-db-index-design",
+    section: "interview",
+    title: "複合インデックスと実行計画の読み方",
+    tag: "面接",
+    summary:
+      "複合インデックスの設計原則（カーディナリティ順、カバリングインデックス）と EXPLAIN の読み方。",
+    why: "DB設計の面接ではインデックス設計が頻出。適切なインデックスを設計できるかでクエリ性能が100倍変わる。",
+    tradeoffs: [
+      {
+        title: "インデックス数 vs 書き込み性能",
+        desc: "インデックスが増えると SELECT は速くなるが INSERT/UPDATE が遅くなる。書き込み負荷の高いテーブルでは最小限に。",
+      },
+      {
+        title: "カバリングインデックス vs ストレージ",
+        desc: "必要なカラムを全てインデックスに含めるとテーブルアクセスが不要になるが、インデックスサイズが増大。",
+      },
+    ],
+    badCode: `-- アンチパターン: カラムごとに単一インデックス
+CREATE INDEX idx_status ON orders(status);
+CREATE INDEX idx_user ON orders(user_id);
+CREATE INDEX idx_date ON orders(created_at);
+
+-- WHERE user_id = ? AND status = 'active' ORDER BY created_at
+-- → 3つのインデックスのうち1つしか使えない（MySQL）
+-- → Index Merge は非効率
+
+-- EXPLAINを見ないでインデックスを追加
+-- → 実際には使われていない無駄なインデックス`,
+    goodCode: `-- 複合インデックス: クエリパターンに合わせて設計
+-- WHERE user_id = ? AND status = ? ORDER BY created_at DESC
+CREATE INDEX idx_user_status_date
+  ON orders(user_id, status, created_at DESC);
+
+-- カバリングインデックス: SELECT に必要なカラムも含める
+-- SELECT id, total FROM orders WHERE user_id = ? AND status = ?
+CREATE INDEX idx_covering
+  ON orders(user_id, status, id, total);
+-- → テーブルへのアクセスが不要（Using index）
+
+-- EXPLAIN で実行計画を確認
+EXPLAIN ANALYZE
+SELECT id, total FROM orders
+WHERE user_id = 123 AND status = 'active'
+ORDER BY created_at DESC LIMIT 20;
+-- type: ref, key: idx_user_status_date, rows: 20
+-- → Index Scan のみ、Full Table Scan なし`,
+    interviewPoints: [
+      {
+        point: "複合インデックスの左端プレフィックス原則",
+        detail:
+          "複合インデックス (A, B, C) は A, (A,B), (A,B,C) の検索に使えるが、B単体や (B,C) では使えない。最も選択性の高いカラム（カーディナリティが高い）を左に配置する。",
+      },
+      {
+        point: "EXPLAIN の重要な指標",
+        detail:
+          "type: ALL（フルスキャン）→ index → range → ref → eq_ref → const の順に高速。rows: 推定スキャン行数。Extra: Using index（カバリング）、Using filesort（ソートにインデックスが使えない）、Using temporary（一時テーブル使用）。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "複合インデックスの設計原則: ____ の高いカラムを左に、WHERE句の ____ カラムを先に、ORDER BY のカラムを ____ に含める",
+        blanks: ["カーディナリティ", "等値条件（=）", "末尾"],
+        explanation:
+          "等値条件（=）のカラムを先に、範囲条件（>, <, BETWEEN）のカラムを後に配置する。ORDER BY のカラムを末尾に含めるとfilesortが不要になる。これにより WHERE + ORDER BY を1つのインデックスでカバーできる。",
+      },
+    ],
+  },
+
+  "interview-db-deadlock": {
+    id: "interview-db-deadlock",
+    section: "interview",
+    title: "デッドロック対策とトランザクション設計",
+    tag: "面接",
+    summary:
+      "デッドロックの発生メカニズム、検知方法、予防的設計パターン。ロック順序の統一、楽観的ロック、リトライ戦略。",
+    why: "本番で発生するデッドロックは調査が難しい。メカニズムを理解し、設計段階で予防できるかが問われる。",
+    tradeoffs: [
+      {
+        title: "悲観的ロック vs 楽観的ロック",
+        desc: "悲観的はデータ整合性が確実だが並行性が低下。楽観的は並行性が高いが競合時のリトライコストがある。",
+      },
+      {
+        title: "トランザクション粒度",
+        desc: "大きなトランザクションはロック競合が増える。小さくすると整合性の担保が複雑になる。",
+      },
+    ],
+    badCode: `// デッドロックを引き起こすパターン
+// goroutine A: users → orders の順でロック
+// goroutine B: orders → users の順でロック
+
+// Tx A:
+BEGIN;
+UPDATE users SET balance = balance - 100 WHERE id = 1;  -- users をロック
+UPDATE orders SET status = 'paid' WHERE id = 10;         -- orders を待機...
+
+// Tx B:
+BEGIN;
+UPDATE orders SET status = 'shipped' WHERE id = 10;      -- orders をロック
+UPDATE users SET points = points + 10 WHERE id = 1;      -- users を待機...
+// → 互いに待ち合ってデッドロック!`,
+    goodCode: `// 対策1: ロック順序を統一（アルファベット順）
+// 常に orders → users の順でアクセス
+
+// 対策2: SELECT FOR UPDATE でロック範囲を明示
+func TransferWithLock(ctx context.Context, db *sql.DB,
+    orderID, userID int) error {
+    tx, _ := db.BeginTx(ctx, nil)
+    defer tx.Rollback()
+
+    // 常に同じ順序でロック取得
+    var order Order
+    tx.QueryRowContext(ctx,
+        "SELECT * FROM orders WHERE id = $1 FOR UPDATE",
+        orderID).Scan(&order)
+
+    var user User
+    tx.QueryRowContext(ctx,
+        "SELECT * FROM users WHERE id = $1 FOR UPDATE",
+        userID).Scan(&user)
+
+    // 更新処理...
+    return tx.Commit()
+}
+
+// 対策3: 楽観的ロック（version カラム）
+// UPDATE orders SET status = 'paid', version = version + 1
+// WHERE id = $1 AND version = $2
+// → affected rows = 0 なら競合 → リトライ`,
+    interviewPoints: [
+      {
+        point: "デッドロック検知と自動リトライ",
+        detail:
+          "PostgreSQL/MySQL はデッドロックを自動検知し、一方のトランザクションをロールバックする。アプリケーション側ではデッドロックエラー（PostgreSQL: 40P01, MySQL: 1213）を捕捉してリトライする。最大3回、exponential backoff で。",
+      },
+      {
+        point: "楽観的ロックが適するケース",
+        detail:
+          "読み取りが多く書き込み競合が少ない場合（ECの在庫管理等）。version カラムまたは updated_at で競合を検知。競合率が高い場合は悲観的ロック（SELECT FOR UPDATE）の方が効率的。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "デッドロックを設計段階で予防する3つの方法は？",
+        blanks: [
+          "テーブル/行のロック順序をアプリケーション全体で統一する",
+          "トランザクションを短く保ち、ロック保持時間を最小化する",
+          "楽観的ロック（version カラム）で明示的なロックを避ける",
+        ],
+        explanation:
+          "デッドロックは2つ以上のトランザクションが互いにロックを待つ状態。ロック順序を統一すれば循環待ちが発生しない。また、トランザクションを短くすると競合の窓が狭まり、楽観的ロックはそもそもロックを取らないため根本的に防げる。",
+      },
+    ],
+  },
+
+  "interview-api-pagination-versioning": {
+    id: "interview-api-pagination-versioning",
+    section: "interview",
+    title: "API設計: ページネーションとバージョニング",
+    tag: "面接",
+    summary:
+      "Cursor vs Offset ページネーションの使い分け、API バージョニング戦略（URL/Header/Content Negotiation）。",
+    why: "API設計は面接の定番テーマ。実務的なトレードオフを理解し、設計判断を説明できるかが問われる。",
+    tradeoffs: [
+      {
+        title: "Cursor vs Offset ページネーション",
+        desc: "Offset は実装が簡単だがデータ挿入時にページずれが発生する。Cursor は一貫性が高いがランダムアクセスができない。",
+      },
+      {
+        title: "URL バージョニング vs Header バージョニング",
+        desc: "/v1/users は明示的で分かりやすいがURL汚染。Accept ヘッダーはRESTfulだがテストしにくい。",
+      },
+    ],
+    badCode: `// Offset ページネーションの問題
+GET /api/orders?page=2&per_page=20
+
+// ユーザーが1ページ目を見ている間に新規注文が入ると
+// 2ページ目で同じデータが表示される（ページずれ）
+
+// APIバージョニングなし
+GET /api/users  // 破壊的変更を加えると全クライアントが壊れる
+
+// バージョンごとにコード全コピー
+// → v1, v2, v3 でコードが3倍に膨らむ`,
+    goodCode: `// Cursor ページネーション
+GET /api/orders?cursor=eyJpZCI6MTAwfQ&limit=20
+
+// レスポンス
+{
+  "data": [...],
+  "pagination": {
+    "next_cursor": "eyJpZCI6MTIwfQ",
+    "has_more": true
+  }
+}
+// → データ挿入されてもページずれしない
+
+// Go 実装
+func ListOrders(ctx context.Context, cursor string, limit int) {
+    var afterID int
+    if cursor != "" {
+        afterID = decodeCursor(cursor) // Base64 decode
+    }
+    rows, _ := db.QueryContext(ctx,
+        "SELECT * FROM orders WHERE id > $1 ORDER BY id LIMIT $2",
+        afterID, limit+1) // limit+1 で has_more を判定
+
+    // limit+1件取れたら has_more = true
+}
+
+// URL バージョニング（実務で最も一般的）
+// /v1/users → /v2/users
+// ルーティング層でバージョン分岐、共通ロジックは共有`,
+    interviewPoints: [
+      {
+        point: "Cursor ページネーションの実装パターン",
+        detail:
+          "Cursor は通常 PRIMARY KEY の値を Base64 エンコードしたもの。WHERE id > cursor ORDER BY id LIMIT N+1 で実装。N+1件取れたら has_more=true。複合ソート（created_at + id）の場合はCursorに両方の値を含める。",
+      },
+      {
+        point: "非破壊的なAPI進化のパターン",
+        detail:
+          "フィールド追加は非破壊的（既存クライアントは無視する）。フィールド削除・型変更は破壊的 → バージョンアップが必要。段階的廃止: Sunset ヘッダー + Deprecation 警告 → 移行期間 → 旧バージョン停止。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Cursor ページネーションで has_more を効率的に判定する方法: LIMIT を ____ にして取得し、 ____ 件取れたら has_more = ____ とする",
+        blanks: ["N+1", "N+1", "true"],
+        explanation:
+          "要求された件数+1件を取得することで、追加のCOUNTクエリなしに次のページの有無を判定できる。レスポンスにはN件だけ返し、N+1件目は捨てる。これはGitHub API等でも使われるパターン。",
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════
   // シニアバックエンド共通知識
   // ═══════════════════════════════════════════════════════════
 
@@ -8115,7 +8827,7 @@ export const SECTIONS: Section[] = [
       "senior-resilience",
     ],
   },
-  // ── 面接準備 (interview): 面接対策→要点まとめ→TL面接 ──
+  // ── 面接準備 (interview): 面接対策→行動面接→要点まとめ→TL面接 ──
   {
     id: "interview",
     title: "① 面接対策",
@@ -8133,11 +8845,29 @@ export const SECTIONS: Section[] = [
       "interview-api-design",
       "interview-system-design",
       "interview-production-incident",
+      "interview-db-index-design",
+      "interview-db-deadlock",
+      "interview-api-pagination-versioning",
+    ],
+  },
+  {
+    id: "behavioral",
+    title: "② 行動面接（STAR）",
+    icon: "🗣",
+    group: "interview",
+    description: "経験を構造的に語るSTAR形式のシナリオ集",
+    topicIds: [
+      "behavioral-data-loss",
+      "behavioral-performance",
+      "behavioral-tech-decision",
+      "behavioral-security",
+      "behavioral-mentoring",
+      "behavioral-conflict",
     ],
   },
   {
     id: "summary",
-    title: "② 要点まとめ",
+    title: "③ 要点まとめ",
     icon: "≡",
     group: "interview",
     description: "面接で簡潔に説明するための要約",
@@ -8145,7 +8875,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "tl-interview",
-    title: "③ TL面接",
+    title: "④ TL面接",
     icon: "★",
     group: "interview",
     description: "テックリード候補向け — 設計判断・品質・チーム運営",

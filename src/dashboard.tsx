@@ -210,7 +210,7 @@ export function Dashboard({
         <h2 class="text-xs font-bold uppercase tracking-widest opacity-60">
           セクション別進捗
         </h2>
-        {(["basics", "skills", "advanced", "interview"] as SectionGroup[]).map(
+        {(["interview", "basics", "skills", "advanced"] as SectionGroup[]).map(
           (group) => {
             const groupStats = sectionStats.filter((s) => s.group === group);
             if (groupStats.length === 0) return null;
@@ -368,6 +368,115 @@ export function Dashboard({
           );
         })()}
       </div>
+
+      {/* ── Interview Readiness ── */}
+      {(() => {
+        const interviewSection = SECTIONS.find((s) => s.id === "interview");
+        const behavioralSection = SECTIONS.find((s) => s.id === "behavioral");
+        const sysDesignSection = SECTIONS.find((s) => s.id === "system-design");
+
+        const goTechIds = interviewSection
+          ? interviewSection.topicIds.filter((id) => !id.includes("database") && !id.includes("api-") && !id.includes("system") && !id.includes("production") && !id.includes("db-"))
+          : [];
+        const dbApiIds = interviewSection
+          ? interviewSection.topicIds.filter((id) => id.includes("database") || id.includes("api-") || id.includes("db-"))
+          : [];
+        const sysDesignIds = [
+          ...interviewSection?.topicIds.filter((id) => id.includes("system") || id.includes("production")) ?? [],
+          ...(sysDesignSection?.topicIds ?? []).slice(0, 5),
+        ];
+
+        const dimensions = [
+          { label: "Go 技術面接", topicIds: goTechIds },
+          { label: "DB/API 設計", topicIds: dbApiIds },
+          { label: "システム設計", topicIds: sysDesignIds },
+          { label: "行動面接 (STAR)", topicIds: behavioralSection?.topicIds ?? [] },
+        ];
+
+        const dimScores = dimensions.map((dim) => {
+          const completedN = dim.topicIds.filter((id) => completed[id]).length;
+          const total = dim.topicIds.length;
+          const completionPct = total > 0 ? Math.round((completedN / total) * 100) : 0;
+
+          let quizCorrect = 0;
+          let quizTotal = 0;
+          for (const tid of dim.topicIds) {
+            for (const [k, r] of scoreEntries) {
+              if (k.startsWith(tid + "_")) {
+                quizTotal++;
+                if (r === "correct") quizCorrect++;
+              }
+            }
+          }
+          const quizPct = quizTotal > 0 ? Math.round((quizCorrect / quizTotal) * 100) : -1;
+
+          const readiness = quizPct >= 0
+            ? Math.round(completionPct * 0.4 + quizPct * 0.6)
+            : completionPct;
+
+          return { ...dim, completionPct, quizPct, readiness };
+        });
+
+        const overallReadiness = Math.round(
+          dimScores.reduce((s, d) => s + d.readiness, 0) / dimScores.length,
+        );
+
+        const readinessColor =
+          overallReadiness >= 80
+            ? "text-success"
+            : overallReadiness >= 50
+              ? "text-warning"
+              : "text-error";
+
+        return (
+          <div class="space-y-3">
+            <h2 class="text-xs font-bold uppercase tracking-widest opacity-60">
+              面接準備度
+            </h2>
+            <div class="card bg-base-200">
+              <div class="card-body p-5">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-xs font-semibold">総合準備度</span>
+                  <span class={`text-2xl font-bold ${readinessColor}`}>
+                    {overallReadiness}%
+                  </span>
+                </div>
+                <div class="space-y-3">
+                  {dimScores.map((dim) => (
+                    <div key={dim.label}>
+                      <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs">{dim.label}</span>
+                        <span class="text-xs font-bold">
+                          {dim.readiness}%
+                        </span>
+                      </div>
+                      <progress
+                        class={`progress w-full h-2 ${
+                          dim.readiness >= 80
+                            ? "progress-success"
+                            : dim.readiness >= 50
+                              ? "progress-warning"
+                              : "progress-error"
+                        }`}
+                        value={dim.readiness}
+                        max={100}
+                      />
+                      <div class="flex justify-between mt-0.5">
+                        <span class="text-[0.6rem] opacity-50">
+                          学習 {dim.completionPct}%
+                        </span>
+                        <span class="text-[0.6rem] opacity-50">
+                          {dim.quizPct >= 0 ? `正答率 ${dim.quizPct}%` : "未回答"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Accuracy & Weak Points ── */}
       {(sectionAccuracy.length > 0 || weakTopics.length > 0) && (
