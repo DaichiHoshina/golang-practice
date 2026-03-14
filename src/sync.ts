@@ -8,6 +8,7 @@ const STORAGE_KEYS = [
   "go-study-notes",
   "go-study-quiz-scores",
   "go-study-bookmarks",
+  "go-study-highlights",
   "go-study-srs",
   "go-study-log",
 ] as const;
