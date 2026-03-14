@@ -15,6 +15,7 @@ import {
 } from "./icons";
 import { DailyChallenge } from "./daily-challenge";
 import { Playground } from "./playground";
+import { TechLeadInterview } from "./tech-lead-interview";
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
 import { SyncButton } from "./sync-ui";
@@ -378,6 +379,8 @@ export function App() {
                   }
                 }}
               />
+            ) : currentSection === "tl-interview" ? (
+              <TechLeadInterview />
             ) : currentSection === "playground" ? (
               <Playground initialCode={playgroundCode} />
             ) : activeSection ? (

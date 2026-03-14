@@ -7420,6 +7420,13 @@ export const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "tl-interview",
+    title: "TL面接",
+    icon: "★",
+    description: "テックリード候補向け — 設計判断・品質・チーム運営",
+    topicIds: [],
+  },
+  {
     id: "system-design",
     title: "システム設計",
     icon: "◇",
