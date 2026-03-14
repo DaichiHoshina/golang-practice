@@ -358,6 +358,7 @@ export function App() {
                 notes={notes}
                 quizScores={quizScores}
                 studyLog={studyLog}
+                srsData={srsData}
                 onNavigate={navigate}
               />
             ) : currentSection === "random-quiz" ? (

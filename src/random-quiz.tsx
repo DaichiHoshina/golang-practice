@@ -57,6 +57,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 type Difficulty = "all" | "easy" | "medium" | "hard";
+type QuizMode = "normal" | "review" | "weak";
 
 function getPool(sectionId: string, difficulty: Difficulty): QuizWithMeta[] {
   let pool =
@@ -137,6 +138,7 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const [selectedSection, setSelectedSection] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<Difficulty>("all");
+  const [quizMode, setQuizMode] = useState<QuizMode>("normal");
   const [queue, setQueue] = useState<QuizWithMeta[]>(() =>
     shuffle(ALL_QUIZZES),
   );
@@ -183,10 +185,49 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
     }
   }, [timerMode, timeLeft, currentIdx, queue]);
 
+  /** Compute weak topic IDs (accuracy < 80%) */
+  const weakTopicIds = useMemo(() => {
+    const topicAcc = new Map<string, { correct: number; total: number }>();
+    for (const [key, result] of Object.entries(scores)) {
+      const topicId = key.split("_")[0];
+      const prev = topicAcc.get(topicId) ?? { correct: 0, total: 0 };
+      topicAcc.set(topicId, {
+        correct: prev.correct + (result === "correct" ? 1 : 0),
+        total: prev.total + 1,
+      });
+    }
+    const ids = new Set<string>();
+    for (const [id, stats] of topicAcc) {
+      if (stats.total >= 1 && stats.correct / stats.total < 0.8) {
+        ids.add(id);
+      }
+    }
+    return ids;
+  }, [scores]);
+
   /** Build queue with SRS-due items first, then wrong, then rest */
   const buildQueue = useCallback(
-    (sectionId: string, difficulty: Difficulty) => {
-      const pool = getPool(sectionId, difficulty);
+    (sectionId: string, difficulty: Difficulty, mode: QuizMode = "normal") => {
+      let pool = getPool(sectionId, difficulty);
+
+      if (mode === "review") {
+        // Only SRS-due cards
+        pool = pool.filter((q) => {
+          const idx = ALL_QUIZZES.indexOf(q);
+          const key = `${q.topicId}_${idx % pool.length}`;
+          const card = srsData[key];
+          return card && isDue(card);
+        });
+        return shuffle(pool);
+      }
+
+      if (mode === "weak") {
+        // Only weak topics (< 80% accuracy)
+        pool = pool.filter((q) => weakTopicIds.has(q.topicId));
+        return shuffle(pool);
+      }
+
+      // Normal: SRS-due first, then rest
       const due: QuizWithMeta[] = [];
       const rest: QuizWithMeta[] = [];
       for (const q of pool) {
@@ -200,27 +241,37 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
       }
       return [...shuffle(due), ...shuffle(rest)];
     },
-    [srsData],
+    [srsData, weakTopicIds],
   );
 
   const handleSectionChange = useCallback(
     (sectionId: string) => {
       setSelectedSection(sectionId);
-      setQueue(buildQueue(sectionId, selectedDifficulty));
+      setQueue(buildQueue(sectionId, selectedDifficulty, quizMode));
       setCurrentIdx(0);
       setOpenSet(new Set());
     },
-    [buildQueue, selectedDifficulty],
+    [buildQueue, selectedDifficulty, quizMode],
   );
 
   const handleDifficultyChange = useCallback(
     (difficulty: Difficulty) => {
       setSelectedDifficulty(difficulty);
-      setQueue(buildQueue(selectedSection, difficulty));
+      setQueue(buildQueue(selectedSection, difficulty, quizMode));
       setCurrentIdx(0);
       setOpenSet(new Set());
     },
-    [buildQueue, selectedSection],
+    [buildQueue, selectedSection, quizMode],
+  );
+
+  const handleModeChange = useCallback(
+    (mode: QuizMode) => {
+      setQuizMode(mode);
+      setQueue(buildQueue(selectedSection, selectedDifficulty, mode));
+      setCurrentIdx(0);
+      setOpenSet(new Set());
+    },
+    [buildQueue, selectedSection, selectedDifficulty],
   );
 
   const current = queue[currentIdx];
@@ -339,10 +390,10 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   );
 
   const handleReshuffle = useCallback(() => {
-    setQueue(buildQueue(selectedSection, selectedDifficulty));
+    setQueue(buildQueue(selectedSection, selectedDifficulty, quizMode));
     setCurrentIdx(0);
     setOpenSet(new Set());
-  }, [selectedSection, selectedDifficulty, buildQueue]);
+  }, [selectedSection, selectedDifficulty, quizMode, buildQueue]);
 
   // ─── Keyboard shortcuts ────────────────────────────────
   useEffect(() => {
@@ -456,6 +507,43 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
           ))}
         </div>
 
+        {/* Mode filter */}
+        <div class="flex gap-1.5 mt-2">
+          {[
+            { id: "normal" as QuizMode, label: "通常" },
+            {
+              id: "review" as QuizMode,
+              label: `復習 (${countDue(srsData)}件)`,
+              disabled: countDue(srsData) === 0,
+            },
+            {
+              id: "weak" as QuizMode,
+              label: `苦手 (${weakTopicIds.size}件)`,
+              disabled: weakTopicIds.size === 0,
+            },
+          ].map((m) => (
+            <button
+              key={m.id}
+              class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
+                quizMode === m.id
+                  ? m.id === "review"
+                    ? "badge-warning"
+                    : m.id === "weak"
+                      ? "badge-error"
+                      : "badge-neutral"
+                  : m.disabled
+                    ? "badge-ghost opacity-40 cursor-not-allowed"
+                    : "badge-ghost hover:badge-neutral"
+              }`}
+              onClick={() => !m.disabled && handleModeChange(m.id)}
+              disabled={m.disabled}
+            >
+              {m.id === "review" ? "🔄 " : m.id === "weak" ? "🎯 " : ""}
+              {m.label}
+            </button>
+          ))}
+        </div>
+
         {/* Stats bar */}
         <div class="flex items-center gap-4 mt-3">
           <div class="flex gap-3 text-xs">
@@ -488,8 +576,17 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
         </div>
       )}
 
+      {/* Screen reader announcement */}
+      <div aria-live="polite" class="sr-only">
+        {showCelebration ? "正解!" : ""}
+      </div>
+
       {/* Quiz Card */}
-      <div class="card bg-base-200 border border-base-300 relative overflow-hidden">
+      <div
+        class="card bg-base-200 border border-base-300 relative overflow-hidden"
+        role="region"
+        aria-label="クイズ問題"
+      >
         {showCelebration && <CelebrationBurst />}
         <div class="card-body p-5">
           <div class="flex items-center justify-between mb-3">

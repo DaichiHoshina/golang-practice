@@ -7,16 +7,18 @@ import {
   TrophyIcon,
   FileTextIcon,
   CircleDotIcon,
+  RefreshCwIcon,
 } from "./icons";
 import type { QuizScores } from "./random-quiz";
-import type { StudyLog } from "./srs";
-import { getStreak, getCalendarData } from "./srs";
+import type { StudyLog, SRSStore } from "./srs";
+import { getStreak, getCalendarData, countDue } from "./srs";
 
 interface Props {
   completed: Record<string, boolean>;
   notes: Record<string, string>;
   quizScores: QuizScores;
   studyLog: StudyLog;
+  srsData: SRSStore;
   onNavigate: (id: string) => void;
 }
 
@@ -43,6 +45,7 @@ export function Dashboard({
   notes,
   quizScores,
   studyLog,
+  srsData,
   onNavigate,
 }: Props) {
   const completedCount = Object.values(completed).filter(Boolean).length;
@@ -89,6 +92,8 @@ export function Dashboard({
     .filter((w) => w.topic && w.pct < 80)
     .sort((a, b) => a.pct - b.pct)
     .slice(0, 5);
+
+  const dueCount = countDue(srsData);
 
   const dayOfYear = Math.floor(
     (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) /
@@ -171,6 +176,33 @@ export function Dashboard({
         </div>
       </div>
 
+      {/* SRS Review Card */}
+      {dueCount > 0 && (
+        <div class="card bg-warning/10 border border-warning/30">
+          <div class="card-body p-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-warning mb-1 flex items-center gap-1">
+                  <RefreshCwIcon size={11} />
+                  今日の復習
+                </div>
+                <p class="text-2xl font-bold text-warning">{dueCount} 問</p>
+                <p class="text-xs opacity-80 mt-1">
+                  SRSスケジュールに基づく復習予定の問題があります
+                </p>
+              </div>
+              <button
+                class="btn btn-warning btn-sm btn-outline gap-1.5"
+                onClick={() => onNavigate("random-quiz")}
+              >
+                復習を始める
+                <ChevronRightIcon size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Section Grid */}
       <div>
         <h2 class="text-xs font-semibold opacity-90 uppercase tracking-widest mb-3">
@@ -246,6 +278,71 @@ export function Dashboard({
           </div>
         </div>
       </div>
+
+      {/* 7-Day Activity Trend */}
+      {(() => {
+        const last7 = calData.slice(-7);
+        const maxCount = Math.max(...last7.map((d) => d.count), 1);
+        const totalLast7 = last7.reduce((s, d) => s + d.count, 0);
+        const avgPerDay = totalLast7 / 7;
+        const remaining = TOTAL_TOPICS - completedCount;
+        const estDays = avgPerDay > 0 ? Math.ceil(remaining / avgPerDay) : null;
+        return (
+          <div class="card bg-base-200">
+            <div class="card-body p-5">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-semibold">過去7日間の学習量</span>
+                <span class="text-xs opacity-80">
+                  合計 {totalLast7} 問 (平均 {avgPerDay.toFixed(1)}/日)
+                </span>
+              </div>
+              <div class="flex items-end gap-1 h-16">
+                {last7.map((d) => (
+                  <div
+                    key={d.date}
+                    class="flex-1 flex flex-col items-center gap-1"
+                  >
+                    <span class="text-[0.55rem] opacity-60">
+                      {d.count || ""}
+                    </span>
+                    <div
+                      class="w-full bg-primary/70 rounded-t-sm transition-all"
+                      style={`height: ${d.count > 0 ? Math.max((d.count / maxCount) * 100, 8) : 4}%; ${d.count === 0 ? "opacity: 0.2" : ""}`}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div class="flex justify-between mt-1 text-[0.55rem] text-base-content/40">
+                {last7.map((d) => (
+                  <span key={d.date} class="flex-1 text-center">
+                    {new Date(d.date).toLocaleDateString("ja-JP", {
+                      weekday: "narrow",
+                    })}
+                  </span>
+                ))}
+              </div>
+              {remaining > 0 && estDays !== null && (
+                <div class="mt-3 pt-3 border-t border-base-300">
+                  <p class="text-xs opacity-80">
+                    このペースなら{" "}
+                    <span class="font-bold text-primary">
+                      あと約{estDays}日
+                    </span>{" "}
+                    で全トピック修了
+                  </p>
+                </div>
+              )}
+              {remaining > 0 && estDays === null && (
+                <div class="mt-3 pt-3 border-t border-base-300">
+                  <p class="text-xs opacity-60">
+                    学習を始めると修了予測が表示されます
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Section Accuracy */}
       {sectionAccuracy.length > 0 && (

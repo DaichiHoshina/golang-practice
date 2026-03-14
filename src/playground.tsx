@@ -14,6 +14,137 @@ interface Snippet {
 
 type EditorState = "idle" | "running" | "done" | "error";
 
+// ─── Templates ──────────────────────────────────────────
+
+const TEMPLATES: { name: string; code: string }[] = [
+  {
+    name: "Goroutine + Channel",
+    code: `package main
+
+import "fmt"
+
+func main() {
+\tch := make(chan string)
+\tgo func() {
+\t\tch <- "Hello from goroutine!"
+\t}()
+\tmsg := <-ch
+\tfmt.Println(msg)
+}`,
+  },
+  {
+    name: "Interface",
+    code: `package main
+
+import "fmt"
+
+type Shape interface {
+\tArea() float64
+}
+
+type Circle struct {
+\tRadius float64
+}
+
+func (c Circle) Area() float64 {
+\treturn 3.14159 * c.Radius * c.Radius
+}
+
+func printArea(s Shape) {
+\tfmt.Printf("Area: %.2f\\n", s.Area())
+}
+
+func main() {
+\tc := Circle{Radius: 5}
+\tprintArea(c)
+}`,
+  },
+  {
+    name: "Error Handling",
+    code: `package main
+
+import (
+\t"errors"
+\t"fmt"
+)
+
+type AppError struct {
+\tCode    int
+\tMessage string
+}
+
+func (e *AppError) Error() string {
+\treturn fmt.Sprintf("[%d] %s", e.Code, e.Message)
+}
+
+func doSomething() error {
+\treturn &AppError{Code: 404, Message: "not found"}
+}
+
+func main() {
+\terr := doSomething()
+\tvar appErr *AppError
+\tif errors.As(err, &appErr) {
+\t\tfmt.Printf("Code: %d, Msg: %s\\n", appErr.Code, appErr.Message)
+\t}
+}`,
+  },
+  {
+    name: "Context + Timeout",
+    code: `package main
+
+import (
+\t"context"
+\t"fmt"
+\t"time"
+)
+
+func slowTask(ctx context.Context) error {
+\tselect {
+\tcase <-time.After(2 * time.Second):
+\t\tfmt.Println("Task completed")
+\t\treturn nil
+\tcase <-ctx.Done():
+\t\treturn ctx.Err()
+\t}
+}
+
+func main() {
+\tctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+\tdefer cancel()
+
+\tif err := slowTask(ctx); err != nil {
+\t\tfmt.Println("Error:", err)
+\t}
+}`,
+  },
+  {
+    name: "Struct Embedding",
+    code: `package main
+
+import "fmt"
+
+type Base struct {
+\tID int
+}
+
+func (b Base) Identify() string {
+\treturn fmt.Sprintf("ID=%d", b.ID)
+}
+
+type User struct {
+\tBase
+\tName string
+}
+
+func main() {
+\tu := User{Base: Base{ID: 1}, Name: "Alice"}
+\tfmt.Println(u.Identify()) // promoted method
+\tfmt.Println(u.Name)
+}`,
+  },
+];
+
 // ─── Snippets storage ────────────────────────────────────
 
 const SNIPPETS_KEY = "go-study-snippets";
@@ -158,6 +289,25 @@ export function Playground({ initialCode }: { initialCode?: string }) {
         </div>
       </div>
 
+      {/* Templates */}
+      {!showSnippets && (
+        <div class="flex gap-1.5 mb-3 flex-wrap">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.name}
+              class="badge badge-ghost badge-sm cursor-pointer hover:badge-primary transition-colors py-1 px-2"
+              onClick={() => {
+                setSource(t.code);
+                setResult(null);
+                setState("idle");
+              }}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {showSnippets ? (
         <SnippetsList
           snippets={snippets}
@@ -268,6 +418,23 @@ export function Playground({ initialCode }: { initialCode?: string }) {
 
 // ─── Output Panel ────────────────────────────────────────
 
+function formatErrorLines(text: string) {
+  return text.split("\n").map((line, i) => {
+    const match = line.match(/^\.\/prog\.go:(\d+)/);
+    if (match) {
+      return (
+        <div key={i}>
+          <span class="bg-error/20 px-1 rounded text-[0.7rem] font-bold mr-1">
+            L{match[1]}
+          </span>
+          {line.slice(line.indexOf(":", line.indexOf(":") + 1))}
+        </div>
+      );
+    }
+    return <div key={i}>{line}</div>;
+  });
+}
+
 function OutputPanel({ result }: { result: ExecutionResult }) {
   const hasError = !!result.error;
   const hasStderr = !!result.stderr;
@@ -293,7 +460,7 @@ function OutputPanel({ result }: { result: ExecutionResult }) {
         style="min-height: 60px; max-height: 400px; overflow-y: auto;"
       >
         {hasError
-          ? result.error
+          ? formatErrorLines(result.error!)
           : result.stdout || result.stderr || "(no output)"}
         {hasStderr && hasOutput && (
           <>
