@@ -102,6 +102,9 @@ export function App() {
     "go-study-bookmarks",
     {},
   );
+  const [highlights, setHighlights] = useLocalStorage<
+    Record<string, boolean>
+  >("go-study-highlights", {});
   const [srsData, setSrsData] = useLocalStorage<SRSStore>("go-study-srs", {});
   const [studyLog, setStudyLog] = useLocalStorage<StudyLog>("go-study-log", {});
   const [searchOpen, setSearchOpen] = useState(false);
@@ -168,6 +171,13 @@ export function App() {
     setBookmarks((prev: Record<string, boolean>) => ({
       ...prev,
       [id]: !prev[id],
+    }));
+  }, []);
+
+  const toggleHighlight = useCallback((key: string) => {
+    setHighlights((prev: Record<string, boolean>) => ({
+      ...prev,
+      [key]: !prev[key],
     }));
   }, []);
 
@@ -450,9 +460,11 @@ export function App() {
                 completed={completed}
                 notes={notes}
                 bookmarks={bookmarks}
+                highlights={highlights}
                 onToggleComplete={toggleComplete}
                 onNoteChange={updateNote}
                 onToggleBookmark={toggleBookmark}
+                onToggleHighlight={toggleHighlight}
                 onNavigate={navigate}
                 onOpenPlayground={openPlayground}
               />

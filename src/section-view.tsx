@@ -11,6 +11,7 @@ import {
   BookmarkIcon,
   BookmarkOutlineIcon,
   PlayIcon,
+  HighlighterIcon,
 } from "./icons";
 import hljs from "highlight.js/lib/core";
 import go from "highlight.js/lib/languages/go";
@@ -68,12 +69,22 @@ function CodeBlock({
 
 // ─── Interview Point Item ────────────────────────────────
 
-function InterviewPointItem({ item }: { item: InterviewPoint }) {
+function InterviewPointItem({
+  item,
+  highlighted,
+  onToggleHighlight,
+}: {
+  item: InterviewPoint;
+  highlighted?: boolean;
+  onToggleHighlight?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const hasDetail = !!item.detail;
 
   return (
-    <li class="text-xs opacity-90 leading-relaxed">
+    <li
+      class={`text-xs leading-relaxed rounded-md transition-colors ${highlighted ? "bg-warning/15 px-2 py-1 -mx-2" : "opacity-90"}`}
+    >
       <div
         class={`flex gap-2 ${hasDetail ? "cursor-pointer hover:opacity-100 transition-opacity rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary/60 outline-none" : ""}`}
         onClick={() => hasDetail && setOpen((o: boolean) => !o)}
@@ -101,6 +112,19 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
             </span>
           )}
         </span>
+        {onToggleHighlight && (
+          <button
+            class={`shrink-0 p-0.5 rounded transition-colors ${highlighted ? "text-warning" : "text-base-content/20 hover:text-warning/60"}`}
+            onClick={(e: Event) => {
+              e.stopPropagation();
+              onToggleHighlight();
+            }}
+            aria-label={highlighted ? "マーカー解除" : "マーカーを付ける"}
+            title={highlighted ? "マーカー解除" : "マーカーを付ける"}
+          >
+            <HighlighterIcon size={11} />
+          </button>
+        )}
       </div>
       {open && item.detail && (
         <div class="ml-5 mt-1.5 pl-3 border-l-2 border-secondary/30 text-xs opacity-90 leading-relaxed">
@@ -113,7 +137,17 @@ function InterviewPointItem({ item }: { item: InterviewPoint }) {
 
 // ─── Interview Box ───────────────────────────────────────
 
-function InterviewBox({ points }: { points: InterviewPoint[] }) {
+function InterviewBox({
+  points,
+  topicId,
+  highlights,
+  onToggleHighlight,
+}: {
+  points: InterviewPoint[];
+  topicId: string;
+  highlights: Record<string, boolean>;
+  onToggleHighlight: (key: string) => void;
+}) {
   return (
     <div class="mt-4 bg-secondary/10 border border-secondary/30 rounded-box p-4">
       <div class="text-xs font-bold text-secondary mb-2.5 flex items-center gap-1.5">
@@ -121,9 +155,17 @@ function InterviewBox({ points }: { points: InterviewPoint[] }) {
         面接で答えるときのポイント
       </div>
       <ul class="space-y-1.5">
-        {points.map((p, i) => (
-          <InterviewPointItem key={i} item={p} />
-        ))}
+        {points.map((p, i) => {
+          const key = `${topicId}:ip:${i}`;
+          return (
+            <InterviewPointItem
+              key={i}
+              item={p}
+              highlighted={!!highlights[key]}
+              onToggleHighlight={() => onToggleHighlight(key)}
+            />
+          );
+        })}
       </ul>
     </div>
   );
@@ -385,6 +427,8 @@ function TopicCard({
   onNavigate,
   bookmarked,
   onToggleBookmark,
+  highlights,
+  onToggleHighlight,
   onOpenPlayground,
 }: {
   topic: Topic;
@@ -395,6 +439,8 @@ function TopicCard({
   onNavigate: (id: string) => void;
   bookmarked: boolean;
   onToggleBookmark: () => void;
+  highlights: Record<string, boolean>;
+  onToggleHighlight: (key: string) => void;
   onOpenPlayground?: (code: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -502,7 +548,12 @@ function TopicCard({
             </div>
           )}
 
-          <InterviewBox points={topic.interviewPoints} />
+          <InterviewBox
+              points={topic.interviewPoints}
+              topicId={topic.id}
+              highlights={highlights}
+              onToggleHighlight={onToggleHighlight}
+            />
 
           {/* Quizzes */}
           {topic.quizzes && topic.quizzes.length > 0 && (
@@ -546,9 +597,11 @@ interface SectionViewProps {
   completed: Record<string, boolean>;
   notes: Record<string, string>;
   bookmarks: Record<string, boolean>;
+  highlights: Record<string, boolean>;
   onToggleComplete: (id: string) => void;
   onNoteChange: (id: string, val: string) => void;
   onToggleBookmark: (id: string) => void;
+  onToggleHighlight: (key: string) => void;
   onNavigate: (id: string) => void;
   onOpenPlayground?: (code: string) => void;
 }
@@ -558,9 +611,11 @@ export function SectionView({
   completed,
   notes,
   bookmarks,
+  highlights,
   onToggleComplete,
   onNoteChange,
   onToggleBookmark,
+  onToggleHighlight,
   onNavigate,
   onOpenPlayground,
 }: SectionViewProps) {
@@ -603,6 +658,8 @@ export function SectionView({
             onNavigate={onNavigate}
             bookmarked={!!bookmarks[topic.id]}
             onToggleBookmark={() => onToggleBookmark(topic.id)}
+            highlights={highlights}
+            onToggleHighlight={onToggleHighlight}
             onOpenPlayground={onOpenPlayground}
           />
         ))}
