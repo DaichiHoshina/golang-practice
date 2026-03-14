@@ -10,6 +10,7 @@ import { SearchModal } from "./search";
 import {
   SearchIcon,
   BookmarkIcon,
+  GopherIcon,
 } from "./icons";
 import { DailyChallenge } from "./daily-challenge";
 import { Playground } from "./playground";
@@ -219,7 +220,10 @@ export function App() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span class="text-lg font-black tracking-wider">🐹 GoStudy</span>
+          <span class="flex items-center gap-1.5">
+            <GopherIcon size={28} />
+            <span class="text-lg font-black tracking-wider">GoStudy</span>
+          </span>
         </div>
         <div class="navbar-center hidden sm:flex">
           <div class="flex items-center gap-4">
@@ -426,7 +430,10 @@ export function App() {
               })}
             </div>
             <div class="p-3 border-t border-base-200 text-center">
-              <span class="text-[0.65rem] opacity-50 font-medium">Backend Engineer Edition 🐹</span>
+              <span class="flex items-center justify-center gap-1.5">
+                <GopherIcon size={20} />
+                <span class="text-[0.65rem] opacity-50 font-medium">Backend Engineer Ed.</span>
+              </span>
             </div>
           </aside>
         )}

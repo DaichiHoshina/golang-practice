@@ -599,3 +599,49 @@ export function PlayIcon({ size = 12, class: cls }: IconProps) {
     </svg>
   );
 }
+
+/** Go Gopher mascot SVG */
+export function GopherIcon({ size = 32, class: cls }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      class={cls}
+      aria-hidden="true"
+    >
+      {/* Body */}
+      <ellipse cx="50" cy="58" rx="30" ry="32" fill="#7fd5ea" />
+      {/* Belly */}
+      <ellipse cx="50" cy="64" rx="20" ry="22" fill="#c7ebf2" />
+      {/* Head */}
+      <ellipse cx="50" cy="32" rx="26" ry="24" fill="#7fd5ea" />
+      {/* Ears */}
+      <ellipse cx="28" cy="16" rx="7" ry="9" fill="#7fd5ea" />
+      <ellipse cx="72" cy="16" rx="7" ry="9" fill="#7fd5ea" />
+      <ellipse cx="28" cy="16" rx="4" ry="6" fill="#d4a373" />
+      <ellipse cx="72" cy="16" rx="4" ry="6" fill="#d4a373" />
+      {/* Eyes (big white circles with pupils) */}
+      <circle cx="40" cy="28" r="9" fill="white" />
+      <circle cx="60" cy="28" r="9" fill="white" />
+      <circle cx="42" cy="28" r="5" fill="#333" />
+      <circle cx="62" cy="28" r="5" fill="#333" />
+      <circle cx="43" cy="26" r="1.5" fill="white" />
+      <circle cx="63" cy="26" r="1.5" fill="white" />
+      {/* Nose */}
+      <ellipse cx="50" cy="36" rx="4" ry="2.5" fill="#d4a373" />
+      {/* Smile */}
+      <path d="M44 40 Q50 46 56 40" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" />
+      {/* Teeth */}
+      <rect x="47" y="40" width="3" height="3" rx="0.5" fill="white" stroke="#ccc" stroke-width="0.3" />
+      <rect x="50.5" y="40" width="3" height="3" rx="0.5" fill="white" stroke="#ccc" stroke-width="0.3" />
+      {/* Arms */}
+      <ellipse cx="22" cy="56" rx="6" ry="10" fill="#7fd5ea" transform="rotate(-15 22 56)" />
+      <ellipse cx="78" cy="56" rx="6" ry="10" fill="#7fd5ea" transform="rotate(15 78 56)" />
+      {/* Feet */}
+      <ellipse cx="38" cy="88" rx="9" ry="5" fill="#7fd5ea" />
+      <ellipse cx="62" cy="88" rx="9" ry="5" fill="#7fd5ea" />
+    </svg>
+  );
+}
