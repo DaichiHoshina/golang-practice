@@ -459,90 +459,108 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
           </button>
         </div>
 
-        {/* Section filter */}
-        <div class="flex flex-wrap gap-1.5 mt-4">
-          <button
-            class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === "all" ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
-            onClick={() => handleSectionChange("all")}
-          >
-            全て ({ALL_QUIZZES.length})
-          </button>
-          {SECTION_OPTIONS.map((s) => (
-            <button
-              key={s.id}
-              class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === s.id ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
-              onClick={() => handleSectionChange(s.id)}
-            >
-              {s.icon} {s.title} ({s.count})
-            </button>
-          ))}
-        </div>
+        {/* Filters */}
+        <div class="mt-4 space-y-3">
+          {/* Section filter */}
+          <div>
+            <label class="text-[0.65rem] font-bold uppercase tracking-widest opacity-50 mb-1.5 block">
+              セクション
+            </label>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === "all" ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+                onClick={() => handleSectionChange("all")}
+              >
+                全て ({ALL_QUIZZES.length})
+              </button>
+              {SECTION_OPTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  class={`badge badge-md cursor-pointer transition-colors py-1.5 px-3 ${selectedSection === s.id ? "badge-primary" : "badge-ghost hover:badge-primary"}`}
+                  onClick={() => handleSectionChange(s.id)}
+                >
+                  {s.icon} {s.title} ({s.count})
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Difficulty filter */}
-        <div class="flex gap-1.5 mt-2">
-          {(
-            [
-              { id: "all", label: "全難易度" },
-              { id: "easy", label: "易" },
-              { id: "medium", label: "中" },
-              { id: "hard", label: "難" },
-            ] as { id: Difficulty; label: string }[]
-          ).map((d) => (
-            <button
-              key={d.id}
-              class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
-                selectedDifficulty === d.id
-                  ? d.id === "easy"
-                    ? "badge-success"
-                    : d.id === "medium"
-                      ? "badge-warning"
-                      : d.id === "hard"
-                        ? "badge-error"
-                        : "badge-neutral"
-                  : "badge-ghost hover:badge-neutral"
-              }`}
-              onClick={() => handleDifficultyChange(d.id)}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
+          {/* Difficulty + Mode in one row */}
+          <div class="flex flex-wrap gap-4">
+            <div>
+              <label class="text-[0.65rem] font-bold uppercase tracking-widest opacity-50 mb-1.5 block">
+                難易度
+              </label>
+              <div class="flex gap-1.5">
+                {(
+                  [
+                    { id: "all", label: "全て" },
+                    { id: "easy", label: "易" },
+                    { id: "medium", label: "中" },
+                    { id: "hard", label: "難" },
+                  ] as { id: Difficulty; label: string }[]
+                ).map((d) => (
+                  <button
+                    key={d.id}
+                    class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
+                      selectedDifficulty === d.id
+                        ? d.id === "easy"
+                          ? "badge-success"
+                          : d.id === "medium"
+                            ? "badge-warning"
+                            : d.id === "hard"
+                              ? "badge-error"
+                              : "badge-neutral"
+                        : "badge-ghost hover:badge-neutral"
+                    }`}
+                    onClick={() => handleDifficultyChange(d.id)}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Mode filter */}
-        <div class="flex gap-1.5 mt-2">
-          {[
-            { id: "normal" as QuizMode, label: "通常" },
-            {
-              id: "review" as QuizMode,
-              label: `復習 (${dueCount}件)`,
-              disabled: dueCount === 0,
-            },
-            {
-              id: "weak" as QuizMode,
-              label: `苦手 (${weakTopicIds.size}件)`,
-              disabled: weakTopicIds.size === 0,
-            },
-          ].map((m) => (
-            <button
-              key={m.id}
-              class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
-                quizMode === m.id
-                  ? m.id === "review"
-                    ? "badge-warning"
-                    : m.id === "weak"
-                      ? "badge-error"
-                      : "badge-neutral"
-                  : m.disabled
-                    ? "badge-ghost opacity-40 cursor-not-allowed"
-                    : "badge-ghost hover:badge-neutral"
-              }`}
-              onClick={() => !m.disabled && handleModeChange(m.id)}
-              disabled={m.disabled}
-            >
-              {m.id === "review" ? "🔄 " : m.id === "weak" ? "🎯 " : ""}
-              {m.label}
-            </button>
-          ))}
+            <div>
+              <label class="text-[0.65rem] font-bold uppercase tracking-widest opacity-50 mb-1.5 block">
+                出題モード
+              </label>
+              <div class="flex gap-1.5">
+                {[
+                  { id: "normal" as QuizMode, label: "通常" },
+                  {
+                    id: "review" as QuizMode,
+                    label: `復習 (${dueCount})`,
+                    disabled: dueCount === 0,
+                  },
+                  {
+                    id: "weak" as QuizMode,
+                    label: `苦手 (${weakTopicIds.size})`,
+                    disabled: weakTopicIds.size === 0,
+                  },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    class={`badge badge-sm cursor-pointer transition-colors py-1 px-2 ${
+                      quizMode === m.id
+                        ? m.id === "review"
+                          ? "badge-warning"
+                          : m.id === "weak"
+                            ? "badge-error"
+                            : "badge-neutral"
+                        : m.disabled
+                          ? "badge-ghost opacity-40 cursor-not-allowed"
+                          : "badge-ghost hover:badge-neutral"
+                    }`}
+                    onClick={() => !m.disabled && handleModeChange(m.id)}
+                    disabled={m.disabled}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Stats bar */}

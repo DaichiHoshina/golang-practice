@@ -401,7 +401,7 @@ function TopicCard({
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
 
   return (
-    <div class="card bg-base-200 border border-base-300 transition-all">
+    <div class={`card border-l-4 transition-all ${completed ? "bg-base-200 border-l-success border-t-base-300 border-r-base-300 border-b-base-300" : "bg-base-200 border-base-300"}`}>
       {/* Header */}
       <div
         class="card-body p-4 cursor-pointer rounded-t-box focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/60 outline-none"

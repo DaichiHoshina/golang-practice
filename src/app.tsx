@@ -263,6 +263,10 @@ export function App() {
         {sidebarOpen && (
           <aside class="w-52 shrink-0 bg-base-200 border-r border-base-300 overflow-y-auto flex flex-col fixed md:static inset-y-0 left-0 z-40 mt-12 md:mt-0">
             <ul class="menu menu-sm p-2 flex-1">
+              {/* ── Tools ── */}
+              <li class="menu-title mt-0 mb-0">
+                <span class="text-[0.6rem] opacity-80">ツール</span>
+              </li>
               {/* Dashboard */}
               <li>
                 <button
