@@ -38,12 +38,22 @@ export interface Topic {
   quizzes?: Quiz[];
 }
 
+export type SectionGroup = "basics" | "skills" | "advanced" | "interview";
+
+export const SECTION_GROUP_LABELS: Record<SectionGroup, string> = {
+  basics: "基礎",
+  skills: "実践スキル",
+  advanced: "応用",
+  interview: "面接準備",
+};
+
 export interface Section {
   id: string;
   title: string;
   icon: string;
   description: string;
   topicIds: string[];
+  group?: SectionGroup;
 }
 
 export interface Recommendation {

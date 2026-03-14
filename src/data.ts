@@ -7276,6 +7276,7 @@ export const SECTIONS: Section[] = [
     id: "syntax",
     title: "基本文法",
     icon: "{}",
+    group: "basics",
     description: "落とし穴とイディオム",
     topicIds: [
       "syntax-slice",
@@ -7291,6 +7292,7 @@ export const SECTIONS: Section[] = [
     id: "design",
     title: "設計",
     icon: "◈",
+    group: "basics",
     description: "error / context / interface / package",
     topicIds: [
       "design-error",
@@ -7308,6 +7310,7 @@ export const SECTIONS: Section[] = [
     id: "concurrency",
     title: "並行処理",
     icon: "⇌",
+    group: "skills",
     description: "goroutine / channel / worker pool / GMP",
     topicIds: [
       "concurrency-goroutine-channel",
@@ -7324,6 +7327,7 @@ export const SECTIONS: Section[] = [
     id: "performance",
     title: "パフォーマンス",
     icon: "⚡",
+    group: "skills",
     description: "benchmark / pprof / memory / 本番プロファイリング",
     topicIds: [
       "perf-benchmark",
@@ -7338,6 +7342,7 @@ export const SECTIONS: Section[] = [
     id: "testing",
     title: "テスト",
     icon: "✓",
+    group: "skills",
     description: "table-driven / mock / parallel",
     topicIds: ["test-table-driven", "test-mock", "test-helper", "test-fuzzing"],
   },
@@ -7345,6 +7350,7 @@ export const SECTIONS: Section[] = [
     id: "antipatterns",
     title: "アンチパターン",
     icon: "✗",
+    group: "basics",
     description: "避けるべき書き方と正しい代替",
     topicIds: [
       "anti-error-ignore",
@@ -7358,6 +7364,7 @@ export const SECTIONS: Section[] = [
     id: "interview",
     title: "面接対策",
     icon: "◎",
+    group: "interview",
     description: "技術面接で話せるようにする",
     topicIds: [
       "interview-goroutine",
@@ -7376,6 +7383,7 @@ export const SECTIONS: Section[] = [
     id: "toolchain",
     title: "ツールチェイン",
     icon: "⚙",
+    group: "skills",
     description: "linter / go generate / 開発ツール",
     topicIds: ["tools-linter", "tools-go-generate"],
   },
@@ -7383,6 +7391,7 @@ export const SECTIONS: Section[] = [
     id: "practical",
     title: "実務パターン",
     icon: "⊕",
+    group: "advanced",
     description: "実務で頻出するパターンとベストプラクティス",
     topicIds: [
       "practical-slog",
@@ -7397,6 +7406,7 @@ export const SECTIONS: Section[] = [
     id: "summary",
     title: "要点まとめ",
     icon: "≡",
+    group: "interview",
     description: "実務で説明するための要約",
     topicIds: ["summary-idiomatic", "summary-design-decisions"],
   },
@@ -7404,6 +7414,7 @@ export const SECTIONS: Section[] = [
     id: "advanced",
     title: "上級バックエンド",
     icon: "▲",
+    group: "advanced",
     description: "分散システム・可観測性・高可用性の実践知識",
     topicIds: [
       "advanced-otel",
@@ -7423,6 +7434,7 @@ export const SECTIONS: Section[] = [
     id: "tl-interview",
     title: "TL面接",
     icon: "★",
+    group: "interview",
     description: "テックリード候補向け — 設計判断・品質・チーム運営",
     topicIds: [],
   },
@@ -7430,6 +7442,7 @@ export const SECTIONS: Section[] = [
     id: "system-design",
     title: "システム設計",
     icon: "◇",
+    group: "advanced",
     description: "分散システム・スケーラビリティ・面接対策",
     topicIds: [
       "sysdesign-api-gateway",

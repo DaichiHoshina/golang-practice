@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "hono/jsx/dom";
 import { SECTIONS, TOPICS, TOTAL_TOPICS } from "./data";
+import { SECTION_GROUP_LABELS } from "./types";
+import type { SectionGroup } from "./types";
 import { Dashboard } from "./dashboard";
 import { SectionView } from "./section-view";
 import { RandomQuiz } from "./random-quiz";
@@ -342,38 +344,53 @@ export function App() {
                     })}
                 </>
               )}
-              {/* Divider */}
-              <li class="menu-title mt-1 mb-0">
-                <span class="text-[0.6rem] opacity-80">セクション</span>
-              </li>
-              {/* Section items */}
-              {SECTIONS.filter((s) => s.id !== "dashboard").map((s) => {
-                const done = s.topicIds.filter((id) => completed[id]).length;
-                const total = s.topicIds.length;
-                const isActive = currentSection === s.id;
+              {/* Section items grouped by category */}
+              {(["basics", "skills", "advanced", "interview"] as SectionGroup[]).map((group) => {
+                const groupSections = SECTIONS.filter(
+                  (s) => s.id !== "dashboard" && s.group === group,
+                );
+                if (groupSections.length === 0) return null;
                 return (
-                  <li key={s.id}>
-                    <button
-                      class={`flex justify-between w-full ${isActive ? "active" : ""}`}
-                      onClick={() => navigate(s.id)}
-                    >
-                      <span class="flex items-center gap-2">
-                        <span class="opacity-70 w-4 text-center text-xs">
-                          {s.icon}
-                        </span>
-                        <span>{s.title}</span>
+                  <>
+                    <li class="menu-title mt-1 mb-0" key={`g-${group}`}>
+                      <span class="text-[0.6rem] opacity-80">
+                        {SECTION_GROUP_LABELS[group]}
                       </span>
-                      {total > 0 && (
-                        <span
-                          class={`text-xs ${
-                            done === total ? "text-primary" : "opacity-80"
-                          }`}
-                        >
-                          {done}/{total}
-                        </span>
-                      )}
-                    </button>
-                  </li>
+                    </li>
+                    {groupSections.map((s) => {
+                      const done = s.topicIds.filter(
+                        (id) => completed[id],
+                      ).length;
+                      const total = s.topicIds.length;
+                      const isActive = currentSection === s.id;
+                      return (
+                        <li key={s.id}>
+                          <button
+                            class={`flex justify-between w-full ${isActive ? "active" : ""}`}
+                            onClick={() => navigate(s.id)}
+                          >
+                            <span class="flex items-center gap-2">
+                              <span class="opacity-70 w-4 text-center text-xs">
+                                {s.icon}
+                              </span>
+                              <span>{s.title}</span>
+                            </span>
+                            {total > 0 && (
+                              <span
+                                class={`text-xs ${
+                                  done === total
+                                    ? "text-primary"
+                                    : "opacity-80"
+                                }`}
+                              >
+                                {done}/{total}
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </>
                 );
               })}
             </ul>

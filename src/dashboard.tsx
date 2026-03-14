@@ -1,4 +1,6 @@
 import { SECTIONS, TOPICS, TOTAL_TOPICS, RECOMMENDED } from "./data";
+import { SECTION_GROUP_LABELS } from "./types";
+import type { SectionGroup } from "./types";
 import { DataManager } from "./data-manager";
 import {
   StarIcon,
@@ -203,43 +205,58 @@ export function Dashboard({
         </div>
       </div>
 
-      {/* ── Section Grid ── */}
-      <div>
-        <h2 class="text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
+      {/* ── Section Grid (grouped) ── */}
+      <div class="space-y-5">
+        <h2 class="text-xs font-bold uppercase tracking-widest opacity-60">
           セクション別進捗
         </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {sectionStats.map((s) => (
-            <button
-              key={s.id}
-              class="card bg-base-200 hover:bg-base-300 transition-colors text-left cursor-pointer"
-              onClick={() => onNavigate(s.id)}
-            >
-              <div class="card-body p-4">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs font-semibold">
-                    {s.icon} {s.title}
-                  </span>
-                  {s.done === s.total && s.total > 0 ? (
-                    <span class="badge badge-success badge-xs gap-1">
-                      ✓ 制覇
-                    </span>
-                  ) : (
-                    <span class="text-xs opacity-80">
-                      {s.done}/{s.total}
-                    </span>
-                  )}
+        {(["basics", "skills", "advanced", "interview"] as SectionGroup[]).map(
+          (group) => {
+            const groupStats = sectionStats.filter((s) => s.group === group);
+            if (groupStats.length === 0) return null;
+            return (
+              <div key={group}>
+                <p class="text-[0.65rem] font-bold opacity-50 mb-2">
+                  {SECTION_GROUP_LABELS[group]}
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {groupStats.map((s) => (
+                    <button
+                      key={s.id}
+                      class="card bg-base-200 hover:bg-base-300 transition-colors text-left cursor-pointer"
+                      onClick={() => onNavigate(s.id)}
+                    >
+                      <div class="card-body p-4">
+                        <div class="flex items-center justify-between mb-2">
+                          <span class="text-xs font-semibold">
+                            {s.icon} {s.title}
+                          </span>
+                          {s.done === s.total && s.total > 0 ? (
+                            <span class="badge badge-success badge-xs gap-1">
+                              ✓ 制覇
+                            </span>
+                          ) : (
+                            <span class="text-xs opacity-80">
+                              {s.done}/{s.total}
+                            </span>
+                          )}
+                        </div>
+                        <progress
+                          class="progress progress-primary progress-sm w-full h-1"
+                          value={s.total > 0 ? (s.done / s.total) * 100 : 0}
+                          max={100}
+                        />
+                        <p class="text-xs opacity-90 mt-2 truncate">
+                          {s.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <progress
-                  class="progress progress-primary progress-sm w-full h-1"
-                  value={s.total > 0 ? (s.done / s.total) * 100 : 0}
-                  max={100}
-                />
-                <p class="text-xs opacity-90 mt-2 truncate">{s.description}</p>
               </div>
-            </button>
-          ))}
-        </div>
+            );
+          },
+        )}
       </div>
 
       {/* ── Activity ── */}
