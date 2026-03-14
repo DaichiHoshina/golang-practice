@@ -445,7 +445,7 @@ export function App() {
         )}
 
         {/* Main Content */}
-        <main class="flex-1 overflow-y-auto" style={`font-size: ${fontSize}%`}>
+        <main class="flex-1 overflow-y-auto" style={`zoom: ${fontSize / 100}`}>
           <div
             key={currentSection}
             class="page-enter max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8"
