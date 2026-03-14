@@ -445,9 +445,10 @@ function TopicCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const badgeCls = TAG_BADGE[topic.tag] || "badge-ghost";
+  const cardHighlighted = !!highlights[`topic:${topic.id}`];
 
   return (
-    <div class={`card border-l-4 transition-all ${completed ? "bg-base-200 border-l-success border-t-base-300 border-r-base-300 border-b-base-300" : "bg-base-200 border-base-300"}`}>
+    <div class={`card border-l-4 transition-all ${cardHighlighted ? "bg-warning/8 border-l-warning border-t-warning/30 border-r-warning/30 border-b-warning/30" : completed ? "bg-base-200 border-l-success border-t-base-300 border-r-base-300 border-b-base-300" : "bg-base-200 border-base-300"}`}>
       {/* Header */}
       <div
         class="card-body p-4 cursor-pointer rounded-t-box focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/60 outline-none"
@@ -493,12 +494,24 @@ function TopicCard({
           </div>
           <div class="flex items-center gap-1 shrink-0 mt-0.5">
             <button
+              class={`p-1 rounded transition-colors ${cardHighlighted ? "text-warning" : "text-base-content/30 hover:text-warning/60"}`}
+              onClick={(e: Event) => {
+                e.stopPropagation();
+                onToggleHighlight(`topic:${topic.id}`);
+              }}
+              aria-label={cardHighlighted ? "マーカー解除" : "マーカーを付ける"}
+              title={cardHighlighted ? "マーカー解除" : "マーカーを付ける"}
+            >
+              <HighlighterIcon size={12} />
+            </button>
+            <button
               class={`p-1 rounded transition-colors ${bookmarked ? "text-warning" : "text-base-content/30 hover:text-warning/70"}`}
               onClick={(e: Event) => {
                 e.stopPropagation();
                 onToggleBookmark();
               }}
               aria-label={bookmarked ? "ブックマーク解除" : "ブックマーク追加"}
+              title={bookmarked ? "ブックマーク解除" : "ブックマーク追加"}
             >
               {bookmarked ? (
                 <BookmarkIcon size={12} />
