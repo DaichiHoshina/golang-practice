@@ -178,11 +178,20 @@ export function Playground({ initialCode }: { initialCode?: string }) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lineNumsRef = useRef<HTMLDivElement | null>(null);
 
   // Focus textarea on mount
   useEffect(() => {
     if (textareaRef.current && !initialCode) {
       textareaRef.current.focus();
+    }
+  }, []);
+
+  const handleEditorScroll = useCallback((e: Event) => {
+    if (lineNumsRef.current) {
+      lineNumsRef.current.scrollTop = (
+        e.target as HTMLTextAreaElement
+      ).scrollTop;
     }
   }, []);
 
@@ -316,17 +325,29 @@ export function Playground({ initialCode }: { initialCode?: string }) {
         />
       ) : (
         <>
-          {/* Editor */}
-          <div class="relative">
+          {/* Editor with line numbers */}
+          <div class="relative flex border border-base-300 rounded-lg overflow-hidden bg-base-200">
+            {/* Line numbers */}
+            <div
+              ref={lineNumsRef}
+              class="select-none text-right font-mono text-sm bg-base-300/50 overflow-hidden shrink-0"
+              style="padding: 0.75rem 0.5rem; line-height: 1.625; min-width: 2.5rem; max-height: 300px; color: oklch(var(--bc)/0.3);"
+              aria-hidden="true"
+            >
+              {source.split("\n").map((_, i) => (
+                <div key={i}>{i + 1}</div>
+              ))}
+            </div>
             <textarea
               ref={textareaRef}
-              class="textarea textarea-bordered w-full font-mono text-sm leading-relaxed bg-base-200 resize-none"
-              style="min-height: 300px; tab-size: 4;"
+              class="textarea w-full font-mono text-sm bg-base-200 resize-none border-0 outline-none focus:outline-none rounded-none flex-1"
+              style="min-height: 300px; tab-size: 4; line-height: 1.625; padding: 0.75rem;"
               value={source}
               onInput={(e) =>
                 setSource((e.target as HTMLTextAreaElement).value)
               }
               onKeyDown={handleKeyDown}
+              onScroll={handleEditorScroll}
               spellcheck={false}
               autocomplete="off"
               autocapitalize="off"

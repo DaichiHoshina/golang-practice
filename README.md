@@ -2,7 +2,7 @@
 
 バックエンドエンジニア向け Go 中級者の学び直しページ。
 
-**https://daichihoshina.github.io/golang-practice/**
+**https://go-study-app.pages.dev**
 
 ## セクション
 
@@ -37,4 +37,9 @@ npm run preview  # ビルド結果をプレビュー
 
 ## デプロイ
 
-`main` ブランチに push すると GitHub Actions で自動デプロイ。
+| 環境 | URL |
+|------|-----|
+| Frontend | https://go-study-app.pages.dev |
+| Worker API | https://go-study-api.daichi-go-study.workers.dev |
+
+`main` ブランチに push すると Cloudflare Pages で自動デプロイ。
