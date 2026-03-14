@@ -25,15 +25,29 @@ import { pushSync, API_URL } from "./sync";
 function LazyTLInterview() {
   const compRef = useRef<Function | null>(null);
   const [ready, setReady] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!compRef.current) {
-      import("./tech-lead-interview").then((mod) => {
-        compRef.current = mod.TechLeadInterview;
-        setReady(true);
-      });
+    if (!compRef.current && !error) {
+      import("./tech-lead-interview")
+        .then((mod) => {
+          compRef.current = mod.TechLeadInterview;
+          setReady(true);
+        })
+        .catch(() => setError(true));
     }
-  }, []);
+  }, [error]);
+
+  if (error) {
+    return (
+      <div class="text-center py-20">
+        <p class="text-sm text-error mb-2">読み込みに失敗しました</p>
+        <button class="btn btn-ghost btn-sm" onClick={() => setError(false)}>
+          再試行
+        </button>
+      </div>
+    );
+  }
 
   if (!ready || !compRef.current) {
     return (

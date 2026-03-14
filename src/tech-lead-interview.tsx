@@ -269,6 +269,12 @@ function QuizSection({
     [category],
   );
 
+  // Reset quiz index when category changes
+  useEffect(() => {
+    setCurrent(0);
+    setShowAnswer(false);
+  }, [category]);
+
   if (quizzes.length === 0) {
     return (
       <p class="text-sm text-center py-8 opacity-60">

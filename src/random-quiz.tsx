@@ -151,6 +151,7 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const dueCount = useMemo(() => countDue(srsData), [srsData]);
 
   useEffect(() => {
     return () => {
@@ -440,9 +441,9 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
               <h1 class="text-xl font-bold">ランダム出題</h1>
               <p class="text-sm opacity-85 mt-0.5">
                 穴埋め問題をランダムに出題。SRS復習予定の問題を優先。
-                {countDue(srsData) > 0 && (
+                {dueCount > 0 && (
                   <span class="badge badge-warning badge-xs ml-1.5 align-middle">
-                    復習 {countDue(srsData)}件
+                    復習 {dueCount}件
                   </span>
                 )}
               </p>
@@ -513,8 +514,8 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
             { id: "normal" as QuizMode, label: "通常" },
             {
               id: "review" as QuizMode,
-              label: `復習 (${countDue(srsData)}件)`,
-              disabled: countDue(srsData) === 0,
+              label: `復習 (${dueCount}件)`,
+              disabled: dueCount === 0,
             },
             {
               id: "weak" as QuizMode,
