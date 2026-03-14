@@ -21,7 +21,7 @@ const ALL: DailyQuiz[] = Object.values(TOPICS).flatMap((t) =>
 );
 
 /** Deterministic shuffle based on a seed string */
-function seededShuffle<T>(arr: T[], seed: string): T[] {
+export function seededShuffle<T>(arr: T[], seed: string): T[] {
   const a = [...arr];
   let h = 0;
   for (let i = 0; i < seed.length; i++) {

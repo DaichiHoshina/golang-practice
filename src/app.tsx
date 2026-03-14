@@ -116,7 +116,7 @@ export function App() {
     if (!API_URL) return;
     if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
     autoSyncTimer.current = setTimeout(() => {
-      pushSync().catch(() => {});
+      pushSync().catch((e) => console.warn("auto-sync failed:", e));
     }, 3_000);
   }, []);
 

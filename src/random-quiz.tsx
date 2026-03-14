@@ -26,14 +26,17 @@ interface QuizWithMeta {
   topicId: string;
   topicTitle: string;
   sectionId: string;
+  /** Stable SRS key: topicId + quiz index within that topic */
+  srsKey: string;
 }
 
 const ALL_QUIZZES: QuizWithMeta[] = Object.values(TOPICS).flatMap((topic) =>
-  (topic.quizzes ?? []).map((q) => ({
+  (topic.quizzes ?? []).map((q, i) => ({
     quiz: q,
     topicId: topic.id,
     topicTitle: topic.title,
     sectionId: topic.section,
+    srsKey: `${topic.id}_${i}`,
   })),
 );
 
@@ -214,9 +217,7 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
       if (mode === "review") {
         // Only SRS-due cards
         pool = pool.filter((q) => {
-          const idx = ALL_QUIZZES.indexOf(q);
-          const key = `${q.topicId}_${idx % pool.length}`;
-          const card = srsData[key];
+          const card = srsData[q.srsKey];
           return card && isDue(card);
         });
         return shuffle(pool);
@@ -232,8 +233,7 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
       const due: QuizWithMeta[] = [];
       const rest: QuizWithMeta[] = [];
       for (const q of pool) {
-        const key = `${q.topicId}_${pool.indexOf(q) % pool.length}`;
-        const card = srsData[key];
+        const card = srsData[q.srsKey];
         if (card && isDue(card)) {
           due.push(q);
         } else {
@@ -354,7 +354,7 @@ export function RandomQuiz({ scores, srsData, onScore }: Props) {
     return result;
   }, [current, openSet, qType, toggleBlank]);
 
-  const scoreKey = current ? `${current.topicId}_${currentIdx % total}` : "";
+  const scoreKey = current ? current.srsKey : "";
 
   const handleResult = useCallback(
     (result: Result) => {
