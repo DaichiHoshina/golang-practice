@@ -7258,6 +7258,680 @@ type Server struct {
       },
     ],
   },
+
+  // ═══════════════════════════════════════════════════════════
+  // シニアバックエンド共通知識
+  // ═══════════════════════════════════════════════════════════
+
+  "senior-pubsub": {
+    id: "senior-pubsub",
+    section: "senior-backend",
+    title: "Pub/Sub パターンと非同期メッセージング",
+    tag: "設計",
+    summary:
+      "Pub/Sub・Point-to-Point・Fan-out の使い分けと、メッセージブローカー選定の判断基準。",
+    why: "マイクロサービス間の疎結合化に Pub/Sub は不可欠。配信モデルの選択ミスはデータ消失・重複処理・スケーラビリティ問題に直結する。",
+    tradeoffs: [
+      {
+        title: "Pub/Sub vs Point-to-Point",
+        desc: "Pub/Sub は複数コンシューマに同報配信（イベント通知向き）。P2P は1つのコンシューマだけが処理（タスク分散向き）。",
+      },
+      {
+        title: "Push vs Pull モデル",
+        desc: "Push はリアルタイム性が高いがコンシューマ過負荷のリスク。Pull はコンシューマが制御できるが遅延が生じる。",
+      },
+    ],
+    badCode: `// 同期的に全サービスを呼び出す → 障害が連鎖
+func CreateOrder(ctx context.Context, order Order) error {
+    if err := inventoryService.Reserve(ctx, order); err != nil {
+        return err // 在庫サービス障害で注文不可
+    }
+    if err := paymentService.Charge(ctx, order); err != nil {
+        return err // 決済サービス障害で注文不可
+    }
+    if err := notifyService.Send(ctx, order); err != nil {
+        return err // 通知サービス障害で注文不可！
+    }
+    return nil
+}`,
+    goodCode: `// イベント発行で非同期化 → 疎結合
+func CreateOrder(ctx context.Context, order Order) error {
+    if err := db.SaveOrder(ctx, order); err != nil {
+        return err
+    }
+    // Pub/Sub でイベント発行 → 各サービスが独立に処理
+    return publisher.Publish(ctx, "order.created", OrderCreatedEvent{
+        OrderID:   order.ID,
+        UserID:    order.UserID,
+        Items:     order.Items,
+        CreatedAt: time.Now(),
+    })
+    // inventory, payment, notification は各自 subscribe して処理
+}`,
+    interviewPoints: [
+      {
+        point: "Pub/Sub と Message Queue の違いを説明できるか",
+        detail:
+          "Pub/Sub はトピックベースで複数サブスクライバに配信。Message Queue はキューから1つのコンシューマが取り出す。Kafka は両方の特性を持つ（Consumer Group で P2P 的に使える）。",
+      },
+      {
+        point: "メッセージの順序保証をどう実現するか",
+        detail:
+          "Kafka はパーティション内で順序保証。同一キー（例: userID）を同一パーティションに送ることで、ユーザー単位の順序を保証できる。グローバル順序は現実的に不可能。",
+      },
+      {
+        point: "Exactly-once は本当に実現可能か",
+        detail:
+          "ネットワーク上で真の Exactly-once は不可能（Two Generals Problem）。実務では At-least-once + べき等処理で擬似的に実現する。Kafka の Transactional Producer は producer→broker 間のみ。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Pub/Sub で複数サービスにイベントを配信する場合、各サービスが独立して消費するには ____ の仕組みが必要",
+        blanks: ["Consumer Group（またはサブスクリプション）"],
+        explanation:
+          "Kafka では Consumer Group ごとにオフセットを管理し、異なるグループは同じメッセージを独立に読める。GCP Pub/Sub では Subscription 単位で独立配信される。",
+      },
+      {
+        type: "concept" as const,
+        code: "SNS+SQS と Kafka の使い分け基準を述べよ",
+        blanks: [
+          "SNS+SQS: AWSネイティブ・運用ゼロ・低〜中スループットのイベント駆動",
+          "Kafka: 高スループット・メッセージ保持と再生・イベントソーシング・ストリーム処理",
+        ],
+        explanation:
+          "SNS+SQS は Fan-out パターンに最適でサーバーレスと相性が良い。Kafka はメッセージをログとして保持するため、新しいコンシューマが過去のイベントを再生できる。運用コストは Kafka の方が高い。",
+      },
+    ],
+  },
+
+  "senior-job-queue": {
+    id: "senior-job-queue",
+    section: "senior-backend",
+    title: "ジョブキューとバックグラウンド処理",
+    tag: "設計",
+    summary:
+      "非同期ジョブの設計パターン。リトライ戦略・優先度制御・べき等性の確保。",
+    why: "重い処理をリクエストサイクルから分離することで応答速度を保つ。ジョブ失敗時のリトライ・監視設計が運用品質を左右する。",
+    tradeoffs: [
+      {
+        title: "インプロセス vs 外部キュー",
+        desc: "インプロセス（goroutine）はシンプルだがプロセス終了でジョブ消失。外部キュー（Redis/SQS）は永続的だが複雑度が増す。",
+      },
+      {
+        title: "即座リトライ vs Exponential Backoff",
+        desc: "即座リトライは一時的障害に有効だが、外部サービス障害時に負荷を増大させる。Backoff はリソースに優しいが復旧が遅い。",
+      },
+    ],
+    badCode: `// リクエスト中に重い処理を同期実行
+func HandleExport(w http.ResponseWriter, r *http.Request) {
+    data := fetchAllRecords()    // 10万件取得: 30秒
+    csv := generateCSV(data)     // CSV生成: 10秒
+    sendEmail(csv)               // メール送信: 5秒
+    // ユーザーは45秒待たされる → タイムアウト
+    w.Write([]byte("done"))
+}`,
+    goodCode: `// ジョブキューに投入して即座にレスポンス
+func HandleExport(w http.ResponseWriter, r *http.Request) {
+    jobID := uuid.NewString()
+    err := queue.Enqueue(r.Context(), Job{
+        ID:     jobID,
+        Type:   "csv_export",
+        Params: ExportParams{UserID: r.UserID},
+        MaxRetry: 3,
+        Backoff:  time.Minute,
+    })
+    if err != nil {
+        http.Error(w, "ジョブ投入失敗", 500)
+        return
+    }
+    // 即座にジョブIDを返す → フロントはポーリングで完了確認
+    json.NewEncoder(w).Encode(map[string]string{"job_id": jobID})
+}
+
+// Worker: べき等 + リトライ + DLQ
+func (w *Worker) Process(ctx context.Context, job Job) error {
+    if err := w.doExport(ctx, job); err != nil {
+        if job.Attempt >= job.MaxRetry {
+            return w.moveToDLQ(ctx, job, err) // 最終失敗 → DLQ
+        }
+        return fmt.Errorf("retry: %w", err)
+    }
+    return nil
+}`,
+    interviewPoints: [
+      {
+        point: "ジョブのべき等性をどう担保するか",
+        detail:
+          "ジョブIDをキーにした処理済みチェック（Redis SETNX / DBのユニーク制約）。または操作自体をべき等にする（UPSERT、条件付き更新）。",
+      },
+      {
+        point: "ジョブの優先度制御の実装方法",
+        detail:
+          "Redis Sorted Set でスコアに優先度を含める。または優先度別にキューを分ける（high/normal/low）。Worker が高優先度キューを先に poll する。",
+      },
+      {
+        point: "ジョブの監視と可観測性",
+        detail:
+          "キュー深度（未処理ジョブ数）・処理時間・失敗率・DLQ蓄積数をメトリクスとして公開。キュー深度が閾値を超えたらアラート。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "ジョブが失敗した際、外部サービスへの負荷を抑えつつリトライするには ____ 戦略を使う",
+        blanks: ["Exponential Backoff（指数バックオフ）"],
+        explanation:
+          "1秒→2秒→4秒→8秒…と待機時間を指数的に増やす。Jitter（ランダム揺れ）を加えることで、複数ワーカーのリトライが同時に集中する thundering herd を回避する。",
+      },
+      {
+        type: "concept" as const,
+        code: "インプロセスのgoroutineジョブと外部キュー（Redis/SQS）の使い分け基準は？",
+        blanks: [
+          "インプロセス: 失敗しても再実行不要・短時間で完了する補助処理（ログ送信等）",
+          "外部キュー: 失敗時にリトライ必須・処理時間が長い・プロセス再起動をまたぐ必要がある",
+        ],
+        explanation:
+          "goroutine はプロセス終了で消えるため、ジョブの耐久性が求められる場面では外部キュー一択。ただし単純な fire-and-forget（メトリクス送信など）は goroutine で十分。",
+      },
+    ],
+  },
+
+  "senior-perf-tuning": {
+    id: "senior-perf-tuning",
+    section: "senior-backend",
+    title: "パフォーマンスチューニング実践",
+    tag: "運用",
+    summary:
+      "ボトルネック特定→仮説→計測→改善のサイクル。N+1・接続プール・インデックス・キャッシュの定番パターン。",
+    why: "推測でチューニングすると的外れな最適化で工数を浪費する。計測ファーストでボトルネックを科学的に特定するのがシニアの基本動作。",
+    tradeoffs: [
+      {
+        title: "レイテンシ最適化 vs スループット最適化",
+        desc: "レイテンシ削減（キャッシュ追加）はスループットも改善することが多いが、キャッシュ一貫性というコストが発生する。",
+      },
+      {
+        title: "事前最適化 vs 計測駆動",
+        desc: "「推測するな、計測せよ」が原則。ただし N+1 や unbounded query など既知のアンチパターンは設計段階で防ぐ。",
+      },
+    ],
+    badCode: `// 推測ベースの最適化 → 効果なし
+func GetUsers(ctx context.Context) ([]User, error) {
+    // "遅いのはDBのせいだろう" → インデックスを追加
+    // 実際のボトルネックは N+1 クエリ
+    users, _ := db.Query("SELECT * FROM users")
+    for _, u := range users {
+        // N+1: ユーザーごとに1クエリ
+        u.Orders, _ = db.Query(
+            "SELECT * FROM orders WHERE user_id = ?", u.ID)
+        u.Profile, _ = db.Query(
+            "SELECT * FROM profiles WHERE user_id = ?", u.ID)
+    }
+    return users, nil
+}`,
+    goodCode: `// 計測駆動 → N+1 をバッチ化
+func GetUsers(ctx context.Context) ([]User, error) {
+    users, err := db.QueryContext(ctx,
+        "SELECT * FROM users LIMIT 100")
+    if err != nil {
+        return nil, err
+    }
+    ids := make([]string, len(users))
+    for i, u := range users {
+        ids[i] = u.ID
+    }
+    // 1クエリで全注文を取得（N+1 → 2クエリに削減）
+    orders, _ := db.QueryContext(ctx,
+        "SELECT * FROM orders WHERE user_id = ANY($1)", pq.Array(ids))
+    profiles, _ := db.QueryContext(ctx,
+        "SELECT * FROM profiles WHERE user_id = ANY($1)", pq.Array(ids))
+    // メモリ上でマッピング
+    orderMap := groupBy(orders, func(o Order) string { return o.UserID })
+    profileMap := indexBy(profiles, func(p Profile) string { return p.UserID })
+    for i := range users {
+        users[i].Orders = orderMap[users[i].ID]
+        users[i].Profile = profileMap[users[i].ID]
+    }
+    return users, nil
+}`,
+    interviewPoints: [
+      {
+        point: "パフォーマンス問題の調査手順を説明できるか",
+        detail:
+          "① メトリクス確認（レイテンシ分布 p50/p95/p99）→ ② トレースで遅い span 特定 → ③ プロファイル（CPU/メモリ）で関数レベルの hotspot 特定 → ④ 仮説検証 → ⑤ 改善後に再計測。",
+      },
+      {
+        point: "N+1 問題の検出と解決パターン",
+        detail:
+          "ORM のログや APM トレースでクエリ数を確認。解決: JOIN / サブクエリ / IN句バッチ / DataLoader パターン。GraphQL では DataLoader が定番。",
+      },
+      {
+        point: "キャッシュ導入の判断基準",
+        detail:
+          "読み取り頻度が高く更新頻度が低いデータが候補。Cache-Aside パターンが最も汎用的。TTL はビジネス要件の「許容される古さ」から逆算する。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "パフォーマンスチューニングの鉄則は「____ するな、____ せよ」",
+        blanks: ["推測", "計測"],
+        explanation:
+          "Rob Pike の格言。体感や推測でボトルネックを判断すると、実際には問題のない箇所を最適化してしまう。pprof / トレース / メトリクスで数値的に裏付ける。",
+      },
+      {
+        type: "concept" as const,
+        code: "p99 レイテンシが悪化している場合、p50 は正常なことが多い。この差が示す問題のパターンは？",
+        blanks: [
+          "外部依存のタイムアウト・GCポーズ・ロック競合・コールドキャッシュなど、特定条件でのみ遅延が発生するパターン",
+        ],
+        explanation:
+          "p50 と p99 の乖離はテール レイテンシ問題。多くのリクエストは高速だが、一部が極端に遅い。原因は GC Stop-The-World、DBロック待ち、キャッシュミス、外部API遅延など。まずトレースで遅いリクエストの共通点を分析する。",
+      },
+    ],
+  },
+
+  "senior-db-design": {
+    id: "senior-db-design",
+    section: "senior-backend",
+    title: "DB設計とクエリ最適化",
+    tag: "設計",
+    summary:
+      "インデックス戦略・正規化/非正規化の判断・ロック戦略・マイグレーション安全性。",
+    why: "DBはバックエンドで最も状態を持つ層であり、設計ミスの修正コストが最も高い。シニアはスキーマ設計とクエリ最適化の両方を語れる必要がある。",
+    tradeoffs: [
+      {
+        title: "正規化 vs 非正規化",
+        desc: "正規化はデータ整合性を保つが JOIN コストが増加。非正規化は読み取り高速だが更新時の一貫性維持が複雑。",
+      },
+      {
+        title: "楽観ロック vs 悲観ロック",
+        desc: "楽観ロック（version カラム）は競合少ない場面で高スループット。悲観ロック（SELECT FOR UPDATE）は競合多い場面で確実。",
+      },
+    ],
+    badCode: `// 全カラム SELECT + フィルタなし + インデックスなし
+func SearchOrders(status string) ([]Order, error) {
+    // SELECT * は不要カラムも転送 → 帯域・メモリ浪費
+    rows, _ := db.Query("SELECT * FROM orders WHERE status = ?", status)
+    // status カラムにインデックスなし → フルテーブルスキャン
+    // LIMIT なし → 100万行返る可能性
+    return scanAll(rows)
+}
+
+// 楽観ロックなしの更新 → Lost Update
+func UpdateStock(id string, qty int) error {
+    _, err := db.Exec(
+        "UPDATE products SET stock = ? WHERE id = ?", qty, id)
+    return err // 同時更新で上書き消失
+}`,
+    goodCode: `// 必要カラムのみ + インデックス活用 + ページネーション
+func SearchOrders(ctx context.Context, status string, cursor string, limit int,
+) ([]OrderSummary, string, error) {
+    rows, err := db.QueryContext(ctx,
+        \`SELECT id, user_id, total, created_at FROM orders
+         WHERE status = $1 AND id > $2
+         ORDER BY id LIMIT $3\`,   -- Cursor ページネーション
+        status, cursor, limit+1)   -- +1 で次ページ有無を判定
+    if err != nil {
+        return nil, "", err
+    }
+    // ... scan & 次カーソル判定
+
+    return results, nextCursor, nil
+}
+
+// 楽観ロックで安全な更新
+func UpdateStock(ctx context.Context, id string, delta int, version int) error {
+    res, err := db.ExecContext(ctx,
+        \`UPDATE products SET stock = stock + $1, version = version + 1
+         WHERE id = $2 AND version = $3\`, delta, id, version)
+    if err != nil {
+        return err
+    }
+    if n, _ := res.RowsAffected(); n == 0 {
+        return ErrOptimisticLock // 競合検出 → リトライ
+    }
+    return nil
+}`,
+    interviewPoints: [
+      {
+        point: "EXPLAIN ANALYZE の読み方を説明できるか",
+        detail:
+          "Seq Scan → インデックス未使用。Nested Loop → N+1 の兆候。Rows Removed by Filter が多い → インデックスの選択性が低い。actual time と estimated rows の乖離 → 統計情報が古い。",
+      },
+      {
+        point: "複合インデックスの設計原則",
+        detail:
+          "カーディナリティ高いカラム → 等値条件カラム → 範囲条件カラムの順。WHERE a = ? AND b > ? なら INDEX(a, b)。カバリングインデックスで Index-Only Scan を狙う。",
+      },
+      {
+        point: "DBマイグレーションの安全な進め方",
+        detail:
+          "Expand-Contract パターン。① 新カラム追加（NULL許容）→ ② アプリが新旧両方に書き込み → ③ バックフィル → ④ NOT NULL制約追加 → ⑤ 旧カラム削除。一度に全部やらない。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "楽観ロックは ____ カラムを使い、更新時に ____ を WHERE 条件に含めて競合を検出する",
+        blanks: ["version（またはupdated_at）", "現在のバージョン番号"],
+        explanation:
+          "UPDATE ... SET version = version + 1 WHERE id = ? AND version = ? で affected rows が 0 なら競合発生。リトライするかエラーを返す。高競合環境では悲観ロックの方が効率的。",
+      },
+    ],
+  },
+
+  "senior-auth": {
+    id: "senior-auth",
+    section: "senior-backend",
+    title: "認証・認可の設計",
+    tag: "セキュリティ",
+    summary:
+      "JWT / OAuth2 / RBAC / ABAC の使い分け。セッション管理・トークンリフレッシュ・権限モデル設計。",
+    why: "認証・認可の設計ミスはセキュリティインシデントに直結する。シニアは各方式のトレードオフを理解し、要件に応じた選択を語れる必要がある。",
+    tradeoffs: [
+      {
+        title: "JWT（ステートレス）vs セッション（ステートフル）",
+        desc: "JWT はサーバー側に状態不要でスケールしやすいが、即時無効化が困難。セッションは即時無効化可能だがセッションストアが必要。",
+      },
+      {
+        title: "RBAC vs ABAC",
+        desc: "RBAC（ロールベース）はシンプルで理解しやすい。ABAC（属性ベース）は柔軟だが複雑度が高い。多くのシステムでは RBAC + 少量のカスタムルールが現実解。",
+      },
+    ],
+    badCode: `// JWT をそのまま信頼 + 権限チェックなし
+func AdminHandler(w http.ResponseWriter, r *http.Request) {
+    token := r.Header.Get("Authorization")
+    claims, _ := jwt.Parse(token, keyFunc) // エラー無視！
+    // ロールチェックなし → 一般ユーザーも管理画面にアクセス可能
+    users := db.GetAllUsers()
+    json.NewEncoder(w).Encode(users)
+}
+
+// アクセストークンの有効期限が長すぎる
+token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+    "sub": user.ID,
+    "exp": time.Now().Add(365 * 24 * time.Hour).Unix(), // 1年！
+})`,
+    goodCode: `// 認証 + 認可ミドルウェア
+func RequireRole(roles ...string) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            claims, err := auth.ValidateToken(r)
+            if err != nil {
+                http.Error(w, "Unauthorized", 401)
+                return
+            }
+            if !slices.Contains(roles, claims.Role) {
+                http.Error(w, "Forbidden", 403)
+                return
+            }
+            ctx := auth.WithClaims(r.Context(), claims)
+            next.ServeHTTP(w, r.WithContext(ctx))
+        })
+    }
+}
+
+// 短い Access Token + Refresh Token
+accessToken := issueToken(user, 15*time.Minute)  // 15分
+refreshToken := issueRefreshToken(user, 7*24*time.Hour) // 7日
+// Refresh Token は httpOnly cookie + DB で管理（無効化可能）`,
+    interviewPoints: [
+      {
+        point: "JWT の即時無効化問題をどう解決するか",
+        detail:
+          "① Access Token を短寿命（15分）にする ② ブラックリスト（Redis）でトークンIDを管理 ③ Token Introspection エンドポイントで検証。①が最もシンプル。",
+      },
+      {
+        point: "OAuth2 の各フローの使い分け",
+        detail:
+          "Authorization Code + PKCE: SPA/モバイル。Client Credentials: サーバー間通信。Implicit は非推奨。Resource Owner Password も非推奨。",
+      },
+      {
+        point: "マルチテナントの認可設計",
+        detail:
+          "テナントIDをトークンのクレームに含め、全クエリで WHERE tenant_id = ? を強制。Row Level Security（PostgreSQL）で DB レベルでも防御する多層防御が理想。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "JWT の Access Token は短寿命（例: ____ 分）にし、長寿命の ____ Token で更新する設計が推奨される",
+        blanks: ["15", "Refresh"],
+        explanation:
+          "Access Token が漏洩しても被害を限定できる。Refresh Token はサーバー側DBで管理し、無効化（ログアウト・パスワード変更時）可能にする。Refresh Token 自体の漏洩対策として、ローテーション（使用時に新しいものを発行）も有効。",
+      },
+    ],
+  },
+
+  "senior-api-versioning": {
+    id: "senior-api-versioning",
+    section: "senior-backend",
+    title: "API バージョニングと後方互換性",
+    tag: "設計",
+    summary:
+      "API のバージョニング戦略と、破壊的変更を安全にリリースする方法。",
+    why: "クライアントを壊さずに API を進化させるのはシニアの必須スキル。後方互換性を壊すと全クライアントの緊急アップデートが必要になる。",
+    tradeoffs: [
+      {
+        title: "URL パスバージョニング vs ヘッダーバージョニング",
+        desc: "パス（/v1/users）は直感的でキャッシュしやすい。ヘッダー（Accept: application/vnd.api+json;version=2）は URL がきれいだが可視性が低い。",
+      },
+      {
+        title: "破壊的変更 vs 段階的移行",
+        desc: "一気に v2 を出すと移行コストが高い。フィールド追加は非破壊、フィールド削除・型変更は破壊的。Expand-Contract で段階的に移行するのが安全。",
+      },
+    ],
+    badCode: `// レスポンスフィールドの型を突然変更 → 全クライアント壊れる
+// v1: "price": 1000       (number)
+// v2: "price": "1000 JPY" (string に変更！)
+
+// フィールドを予告なく削除
+// v1: {"id": 1, "name": "foo", "email": "..."}
+// v2: {"id": 1, "name": "foo"}  // email が消えた！`,
+    goodCode: `// 非破壊的な進化: フィールド追加 + deprecated マーキング
+// Phase 1: 新フィールド追加（既存はそのまま）
+{
+    "id": 1,
+    "name": "foo",
+    "email": "...",
+    "price": 1000,
+    "price_with_currency": {"amount": 1000, "currency": "JPY"}  // 新フィールド
+}
+
+// Phase 2: レスポンスヘッダーで deprecated 通知
+// Deprecation: true
+// Sunset: Sat, 01 Mar 2025 00:00:00 GMT
+// Link: <https://api.example.com/docs/migration>; rel="deprecation"
+
+// Phase 3: 古いフィールドを削除（移行期間後）`,
+    interviewPoints: [
+      {
+        point: "後方互換性のある変更と破壊的変更の区別",
+        detail:
+          "非破壊: フィールド追加、オプショナルパラメータ追加、新エンドポイント。破壊: フィールド削除、型変更、必須パラメータ追加、ステータスコード変更。",
+      },
+      {
+        point: "API の廃止プロセス",
+        detail:
+          "Deprecation ヘッダーで通知 → Sunset ヘッダーで期限明示 → メトリクスで旧バージョンの利用状況を監視 → 利用ゼロになったら削除。最低6ヶ月の移行期間が目安。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "API の後方互換性を壊さないために「フィールドを追加する」のは非破壊的変更だが、なぜ「フィールドを削除する」のは破壊的変更なのか説明せよ",
+        blanks: [
+          "既存クライアントがそのフィールドを参照している可能性があり、削除すると null/undefined になってクライアントがクラッシュするため",
+        ],
+        explanation:
+          "堅牢なクライアントは未知のフィールドを無視するべき（Postel の法則: 受信は寛容に）。しかし既存フィールドの削除には対応できない。Robustness Principle に従い、API は「送信は厳格に、受信は寛容に」設計する。",
+      },
+    ],
+  },
+
+  "senior-observability": {
+    id: "senior-observability",
+    section: "senior-backend",
+    title: "可観測性（Observability）の3本柱",
+    tag: "運用",
+    summary:
+      "ログ・メトリクス・トレースの統合設計。障害時に素早く根本原因を特定するための仕組み。",
+    why: "本番で問題が起きたとき「何が起きているかわからない」状態が最も危険。可観測性は障害対応時間（MTTR）を劇的に短縮する。",
+    tradeoffs: [
+      {
+        title: "全量収集 vs サンプリング",
+        desc: "全量はデバッグに最適だがコストが膨大。サンプリングはコスト削減できるがレアな問題を見逃す。エラーは常に100%収集、正常系はサンプリングが現実解。",
+      },
+      {
+        title: "構造化ログ vs 非構造化ログ",
+        desc: "構造化（JSON）は検索・集計しやすいが人間が読みにくい。非構造化はデバッグ時は読みやすいが大規模運用では破綻する。",
+      },
+    ],
+    badCode: `// ログ・メトリクス・トレースがバラバラ → 相関不能
+log.Println("order created") // テキストログ → 検索不能
+// メトリクスなし → 異常に気づけない
+// トレースなし → どのサービスが遅いか不明
+
+// エラーログに文脈がない
+log.Println("error occurred") // 何のエラー？どのユーザー？`,
+    goodCode: `// 3本柱を統合: trace_id で相関
+func CreateOrder(ctx context.Context, req OrderReq) (*Order, error) {
+    ctx, span := tracer.Start(ctx, "CreateOrder")
+    defer span.End()
+
+    logger := slog.With(
+        "trace_id", trace.SpanFromContext(ctx).SpanContext().TraceID(),
+        "user_id", req.UserID,
+    )
+    logger.Info("creating order", "items", len(req.Items))
+
+    order, err := svc.Create(ctx, req)
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        logger.Error("order creation failed", "error", err)
+        orderFailures.Inc() // メトリクス: 失敗カウント
+        return nil, err
+    }
+
+    orderLatency.Observe(time.Since(start).Seconds()) // ヒストグラム
+    logger.Info("order created", "order_id", order.ID)
+    return order, nil
+}`,
+    interviewPoints: [
+      {
+        point: "ログ・メトリクス・トレースの使い分け",
+        detail:
+          "メトリクス: 「何が起きているか」を数値で把握（アラート用）。トレース: 「どこで遅いか」をリクエスト単位で追跡。ログ: 「なぜ起きたか」の詳細な文脈。trace_id で3つを紐づける。",
+      },
+      {
+        point: "アラート設計の原則",
+        detail:
+          "SLI/SLO ベースでアラート（例: p99 レイテンシが SLO の 500ms を超えたら）。閾値アラートは症状ベース（エラー率上昇）であって原因ベース（CPU高い）ではないこと。",
+      },
+      {
+        point: "Tail-based サンプリングとは",
+        detail:
+          "リクエスト完了後にエラーや遅延があったトレースだけを保存する。Head-based（最初に確率で決定）より効果的だが、全 span を一時保持する必要があり、Collector の設計が複雑。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "可観測性の3本柱は ____、____、____ であり、____ で相関させる",
+        blanks: ["ログ", "メトリクス", "トレース", "trace_id"],
+        explanation:
+          "エラー発生 → メトリクスでアラート → trace_id でトレースを引く → 遅い span を特定 → trace_id でログを検索して詳細を確認。この流れがMTTR短縮の鍵。",
+      },
+    ],
+  },
+
+  "senior-resilience": {
+    id: "senior-resilience",
+    section: "senior-backend",
+    title: "耐障害性パターン",
+    tag: "設計",
+    summary:
+      "Timeout / Retry / Circuit Breaker / Bulkhead / Fallback を組み合わせた防御的設計。",
+    why: "マイクロサービスでは外部依存の障害は「起きるかどうか」ではなく「いつ起きるか」の問題。耐障害性パターンを理解していないと障害が連鎖する。",
+    tradeoffs: [
+      {
+        title: "リトライ vs Fail Fast",
+        desc: "リトライは一時的障害に有効だが、永続的障害では無駄な負荷を生む。Circuit Breaker と組み合わせて使う。",
+      },
+      {
+        title: "Bulkhead のコスト",
+        desc: "Bulkhead（リソース分離）は障害の波及を防ぐが、リソース効率が下がる。重要度の高いサービスに限定して適用する。",
+      },
+    ],
+    badCode: `// タイムアウトなし + 無限リトライ → 障害が連鎖
+func CallPaymentService(order Order) error {
+    for {
+        resp, err := http.Post(paymentURL, "application/json",
+            bytes.NewReader(marshal(order)))
+        if err == nil && resp.StatusCode == 200 {
+            return nil
+        }
+        time.Sleep(time.Second) // 無限リトライ → goroutine がリークし続ける
+    }
+}`,
+    goodCode: `// Timeout + Retry(Backoff) + Circuit Breaker の組み合わせ
+var paymentBreaker = gobreaker.NewCircuitBreaker(gobreaker.Settings{
+    Name:        "payment",
+    MaxRequests: 3,                // Half-Open で3回成功したら Close
+    Interval:    10 * time.Second, // カウンタリセット間隔
+    Timeout:     30 * time.Second, // Open → Half-Open の待機
+    ReadyToTrip: func(counts gobreaker.Counts) bool {
+        return counts.ConsecutiveFailures > 5
+    },
+})
+
+func CallPaymentService(ctx context.Context, order Order) error {
+    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+    defer cancel()
+
+    _, err := paymentBreaker.Execute(func() (any, error) {
+        return retrier.Do(ctx, 3, 500*time.Millisecond, func() error {
+            return doPaymentCall(ctx, order)
+        })
+    })
+    if errors.Is(err, gobreaker.ErrOpenState) {
+        return handleFallback(order) // フォールバック処理
+    }
+    return err
+}`,
+    interviewPoints: [
+      {
+        point: "耐障害性パターンの適用順序",
+        detail:
+          "内側から: Timeout（個々のリクエスト）→ Retry with Backoff（一時的障害）→ Circuit Breaker（永続的障害の検出）→ Bulkhead（障害の隔離）→ Fallback（代替応答）。",
+      },
+      {
+        point: "Cascading Failure を防ぐには",
+        detail:
+          "タイムアウト必須 + Circuit Breaker で障害サービスへの呼び出しを止める + Bulkhead でスレッドプール/接続プールを分離する。1つのサービスの障害が全体に波及しない設計。",
+      },
+      {
+        point: "Fallback の設計パターン",
+        detail:
+          "キャッシュからの応答、デフォルト値の返却、機能の縮退（推薦が使えなければ人気順を返す）。Fallback 自体もタイムアウトを設定する。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Circuit Breaker の3つの状態は ____、____、____ である",
+        blanks: ["Closed（正常）", "Open（遮断）", "Half-Open（試行）"],
+        explanation:
+          "Closed: リクエストを通す。失敗が閾値を超えると Open に。Open: 全リクエストを即座にエラーにする。一定時間後に Half-Open に。Half-Open: 少数のリクエストを試行し、成功すれば Closed に戻る。",
+      },
+      {
+        type: "concept" as const,
+        code: "リトライだけでは不十分な場面と、その対策を説明せよ",
+        blanks: [
+          "外部サービスが完全にダウンしている場合、リトライは無駄な負荷を増大させる（Retry Storm）",
+          "Circuit Breaker を組み合わせて、連続失敗時にリクエスト自体を遮断する",
+        ],
+        explanation:
+          "リトライは「一時的障害」に有効。「永続的障害」にはCircuit Breakerが必要。さらに複数クライアントが同時にリトライすると thundering herd が発生するため、Jitter 付き Exponential Backoff を使う。",
+      },
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -7421,6 +8095,24 @@ export const SECTIONS: Section[] = [
       "sysdesign-rate-limiting",
       "sysdesign-distributed-tracing",
       "sysdesign-circuit-breaker-detail",
+    ],
+  },
+  // ── シニアバックエンド共通知識 ──
+  {
+    id: "senior-backend",
+    title: "④ シニアBE共通知識",
+    icon: "◆",
+    group: "advanced",
+    description: "言語非依存のバックエンド必須知識",
+    topicIds: [
+      "senior-pubsub",
+      "senior-job-queue",
+      "senior-perf-tuning",
+      "senior-db-design",
+      "senior-auth",
+      "senior-api-versioning",
+      "senior-observability",
+      "senior-resilience",
     ],
   },
   // ── 面接準備 (interview): 面接対策→要点まとめ→TL面接 ──
