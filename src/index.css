@@ -4,12 +4,21 @@
   themes: light --default
 }
 
-/* Go brand teal override */
+/* ── Duolingo-inspired theme ── */
 :root {
-  --color-primary: oklch(0.54 0.14 206);
+  --color-primary: oklch(0.55 0.18 145);       /* Duolingo green */
   --color-primary-content: oklch(1 0 0);
-  --color-secondary: oklch(0.46 0.09 240);
+  --color-secondary: oklch(0.52 0.16 260);     /* Purple accent */
   --color-secondary-content: oklch(1 0 0);
+  --color-accent: oklch(0.65 0.20 50);         /* Orange/gold */
+  --color-accent-content: oklch(1 0 0);
+  --color-info: oklch(0.58 0.16 240);          /* Blue */
+  --color-success: oklch(0.55 0.18 145);       /* Same green */
+  --color-warning: oklch(0.72 0.18 80);        /* Yellow-orange */
+  --color-error: oklch(0.58 0.22 25);          /* Red */
+  --radius-box: 1rem;
+  --radius-btn: 0.75rem;
+  --radius-badge: 0.5rem;
 }
 
 ::-webkit-scrollbar {
@@ -19,18 +28,17 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  /* lighter gray for light theme */
-  background: oklch(0.72 0 0);
+  background: oklch(0.82 0 0);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.58 0 0);
+  background: oklch(0.68 0 0);
 }
 
 .code-block {
   background: #f6f8fa;
   border: 1px solid #d8dee4;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   padding: 0.875rem 1rem;
   font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono",
     monospace;
@@ -46,56 +54,54 @@
 }
 
 .code-good {
-  border-left: 3px solid oklch(0.7 0.15 145);
+  border-left: 3px solid oklch(0.55 0.18 145);
 }
 .code-bad {
-  border-left: 3px solid oklch(0.65 0.2 25);
+  border-left: 3px solid oklch(0.58 0.22 25);
 }
-
 
 @keyframes blank-reveal {
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Text fill-in-blank (inline in text) */
-/* Uses Go teal hue (206) to match the theme */
+/* Fill-in-blank — Duolingo green */
 .text-blank-hidden {
   display: inline-block;
   min-width: 3rem;
-  background: oklch(0.90 0.06 206 / 0.55);
+  background: oklch(0.90 0.08 145 / 0.45);
   border: none;
-  border-radius: 0.25rem;
-  padding: 0.1rem 0.6rem;
+  border-radius: 0.5rem;
+  padding: 0.15rem 0.6rem;
   margin: 0 0.15rem;
-  color: oklch(0.36 0.14 206);
+  color: oklch(0.36 0.14 145);
   font-size: inherit;
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  border-bottom: 2px dashed oklch(0.50 0.12 206 / 0.60);
+  border-bottom: 2px dashed oklch(0.50 0.14 145 / 0.60);
   transition: all 0.2s;
   vertical-align: baseline;
 }
 .text-blank-hidden:hover {
-  background: oklch(0.84 0.09 206 / 0.65);
-  color: oklch(0.28 0.15 206);
+  background: oklch(0.84 0.12 145 / 0.55);
+  color: oklch(0.28 0.16 145);
+  transform: scale(1.02);
 }
 .text-blank-hidden:focus-visible {
-  outline: 2px solid oklch(0.50 0.12 206);
+  outline: 2px solid oklch(0.50 0.14 145);
   outline-offset: 2px;
 }
 
-/* Revealed: use blue (info/secondary) to signal "answer shown" */
 .text-blank-revealed {
   display: inline-block;
-  background: oklch(0.90 0.05 215 / 0.45);
-  border-radius: 0.25rem;
-  padding: 0.1rem 0.5rem;
+  background: oklch(0.90 0.06 145 / 0.40);
+  border-radius: 0.5rem;
+  padding: 0.15rem 0.5rem;
   margin: 0 0.15rem;
-  color: oklch(0.36 0.12 225);
+  color: oklch(0.36 0.14 145);
   font-weight: 700;
-  border-bottom: 2px solid oklch(0.50 0.13 220 / 0.55);
+  border-bottom: 2px solid oklch(0.50 0.14 145 / 0.55);
   animation: blank-reveal 0.3s ease-out;
   vertical-align: baseline;
 }
@@ -109,7 +115,6 @@
   from { opacity: 0; transform: scale(0.95) translateY(-4px); }
   to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
-
 .popup-slide-up {
   animation: popup-slide-up 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -117,20 +122,25 @@
   animation: popup-fade-in 0.15s ease-out;
 }
 
-/* Celebration burst */
+/* ── Celebration burst (Duolingo-style) ── */
 @keyframes celebrate-rise {
   0% { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+  100% { transform: translateY(-80px) scale(1.6); opacity: 0; }
 }
 @keyframes streak-pulse {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  50% { transform: scale(1.15); }
+}
+@keyframes celebrate-bounce {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
 }
 .celebrate-emoji {
   position: absolute;
-  animation: celebrate-rise 0.8s ease-out forwards;
+  animation: celebrate-rise 0.9s ease-out forwards;
   pointer-events: none;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   z-index: 60;
 }
 .streak-badge {
@@ -138,31 +148,68 @@
 }
 @keyframes confetti-fall {
   0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(40px) rotate(360deg); opacity: 0; }
+  100% { transform: translateY(50px) rotate(720deg); opacity: 0; }
 }
 .confetti-dot {
   position: absolute;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  animation: confetti-fall 0.7s ease-out forwards;
+  animation: confetti-fall 0.8s ease-out forwards;
   pointer-events: none;
 }
 
 /* Page transition */
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .page-enter {
-  animation: page-enter 0.18s ease-out;
+  animation: page-enter 0.2s ease-out;
 }
 
-/* Milestone card glow — matches Go teal primary */
+/* Milestone card glow — Duolingo green */
 @keyframes milestone-glow {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.54 0.14 206 / 0); }
-  50% { box-shadow: 0 0 20px 4px oklch(0.54 0.14 206 / 0.35); }
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.55 0.18 145 / 0); }
+  50% { box-shadow: 0 0 24px 6px oklch(0.55 0.18 145 / 0.30); }
 }
 .milestone-card {
   animation: milestone-glow 2s ease-in-out infinite;
+}
+
+/* ── Duo-style sidebar skill node ── */
+@keyframes skill-complete {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.skill-complete-anim {
+  animation: skill-complete 0.5s ease-out;
+}
+
+/* Progress ring */
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* XP badge bounce */
+@keyframes xp-bounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.xp-bounce {
+  animation: xp-bounce 0.4s ease-out;
+}
+
+/* Duo-style button press effect */
+.duo-btn {
+  border-bottom: 4px solid oklch(0.40 0.14 145);
+  transition: all 0.1s;
+}
+.duo-btn:active {
+  border-bottom-width: 2px;
+  transform: translateY(2px);
 }

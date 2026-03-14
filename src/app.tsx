@@ -8,12 +8,8 @@ import { RandomQuiz } from "./random-quiz";
 import type { QuizScores } from "./random-quiz";
 import { SearchModal } from "./search";
 import {
-  HomeIcon,
-  DiceIcon,
   SearchIcon,
   BookmarkIcon,
-  CalendarIcon,
-  TerminalIcon,
 } from "./icons";
 import { DailyChallenge } from "./daily-challenge";
 import { Playground } from "./playground";
@@ -203,58 +199,67 @@ export function App() {
   }, []);
 
   const completedCount = Object.values(completed).filter(Boolean).length;
-  const progressPct = Math.round((completedCount / TOTAL_TOPICS) * 100);
   const activeSection = SECTIONS.find((s) => s.id === currentSection);
 
   return (
     <div class="h-screen flex flex-col bg-base-100 overflow-hidden">
-      {/* ── Header ── */}
-      <div class="navbar bg-base-200 border-b border-base-300 px-4 min-h-12">
-        <div class="navbar-start gap-3">
+      {/* ── Header (Duolingo-style) ── */}
+      <div class="navbar bg-primary text-primary-content px-4 min-h-14 shadow-md">
+        <div class="navbar-start gap-2">
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost btn-sm text-primary-content"
             style="min-width:44px;min-height:44px;"
             onClick={() => setSidebarOpen((o: boolean) => !o)}
             aria-label="サイドバーを切り替え"
             aria-expanded={sidebarOpen}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span class="font-bold text-primary tracking-widest text-sm">GO</span>
-          <span class="text-xs opacity-80 hidden sm:inline">
-            実務学習ガイド
-          </span>
+          <span class="text-lg font-black tracking-wider">🐹 GoStudy</span>
         </div>
-        <div class="navbar-center">
-          <div class="flex items-center gap-2 w-48">
-            <progress
-              class="progress progress-primary h-1.5 flex-1"
-              value={progressPct}
-              max={100}
-            />
-            <span class="text-xs opacity-80">{progressPct}%</span>
+        <div class="navbar-center hidden sm:flex">
+          <div class="flex items-center gap-4">
+            {/* Streak */}
+            <div class="flex items-center gap-1.5 bg-white/15 rounded-xl px-3 py-1" title="学習ストリーク">
+              <span class="text-lg">🔥</span>
+              <span class="font-bold text-sm">{(() => {
+                const today = new Date().toISOString().slice(0, 10);
+                let s = 0;
+                for (let i = 0; i < 30; i++) {
+                  const d = new Date();
+                  d.setDate(d.getDate() - i);
+                  const key = d.toISOString().slice(0, 10);
+                  if (key === today && i === 0) {
+                    if (studyLog[key]) s++;
+                    else continue;
+                  } else if (studyLog[key]) {
+                    s++;
+                  } else break;
+                }
+                return s;
+              })()}</span>
+            </div>
+            {/* XP */}
+            <div class="flex items-center gap-1.5 bg-white/15 rounded-xl px-3 py-1" title="獲得XP（正解数）">
+              <span class="text-lg">⚡</span>
+              <span class="font-bold text-sm">{Object.values(quizScores).filter(v => v === "correct").length} XP</span>
+            </div>
+            {/* Progress */}
+            <div class="flex items-center gap-1.5 bg-white/15 rounded-xl px-3 py-1" title="進捗">
+              <span class="text-lg">👑</span>
+              <span class="font-bold text-sm">{completedCount}/{TOTAL_TOPICS}</span>
+            </div>
           </div>
         </div>
         <div class="navbar-end gap-1">
           <SyncButton onPullComplete={() => {}} />
           <div class="flex items-center gap-0.5">
             <button
-              class="btn btn-ghost btn-xs px-1"
+              class="btn btn-ghost btn-xs px-1 text-primary-content"
               onClick={() => setFontSize((p: number) => Math.max(75, p - 10))}
               disabled={fontSize <= 75}
               aria-label="文字を小さく"
@@ -262,9 +267,9 @@ export function App() {
             >
               <span class="text-[10px] font-bold">A-</span>
             </button>
-            <span class="text-[10px] opacity-60 w-7 text-center">{fontSize}%</span>
+            <span class="text-[10px] opacity-70 w-7 text-center">{fontSize}%</span>
             <button
-              class="btn btn-ghost btn-xs px-1"
+              class="btn btn-ghost btn-xs px-1 text-primary-content"
               onClick={() => setFontSize((p: number) => Math.min(150, p + 10))}
               disabled={fontSize >= 150}
               aria-label="文字を大きく"
@@ -274,16 +279,13 @@ export function App() {
             </button>
           </div>
           <button
-            class="btn btn-ghost btn-sm btn-square"
+            class="btn btn-ghost btn-sm btn-square text-primary-content"
             onClick={() => setSearchOpen(true)}
             aria-label="検索 (Cmd+K)"
             title="検索 (Cmd+K)"
           >
             <SearchIcon size={15} />
           </button>
-          <span class="text-xs opacity-80 ml-1">
-            {completedCount}/{TOTAL_TOPICS}
-          </span>
         </div>
       </div>
 
@@ -297,141 +299,134 @@ export function App() {
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar (Duolingo skill-tree style) */}
         {sidebarOpen && (
-          <aside class="w-52 shrink-0 bg-base-200 border-r border-base-300 overflow-y-auto flex flex-col fixed md:static inset-y-0 left-0 z-40 mt-12 md:mt-0">
-            <ul class="menu menu-sm p-2 flex-1">
-              {/* ── Tools ── */}
-              <li class="menu-title mt-0 mb-0">
-                <span class="text-[0.6rem] opacity-80">ツール</span>
-              </li>
-              {/* Dashboard */}
-              <li>
-                <button
-                  class={`flex justify-between w-full ${currentSection === "dashboard" ? "active" : ""}`}
-                  onClick={() => navigate("dashboard")}
-                >
-                  <span class="flex items-center gap-2">
-                    <HomeIcon size={13} class="opacity-70 shrink-0" />
-                    <span>Dashboard</span>
-                  </span>
-                </button>
-              </li>
-              {/* Random Quiz */}
-              <li>
-                <button
-                  class={`flex justify-between w-full ${currentSection === "random-quiz" ? "active" : ""}`}
-                  onClick={() => navigate("random-quiz")}
-                >
-                  <span class="flex items-center gap-2">
-                    <DiceIcon size={13} class="opacity-70 shrink-0" />
-                    <span>ランダム出題</span>
-                  </span>
-                </button>
-              </li>
-              {/* Daily Challenge */}
-              <li>
-                <button
-                  class={`flex justify-between w-full ${currentSection === "daily-challenge" ? "active" : ""}`}
-                  onClick={() => navigate("daily-challenge")}
-                >
-                  <span class="flex items-center gap-2">
-                    <CalendarIcon size={13} class="opacity-70 shrink-0" />
-                    <span>今日のチャレンジ</span>
-                  </span>
-                </button>
-              </li>
-              {/* Playground */}
-              <li>
-                <button
-                  class={`flex justify-between w-full ${currentSection === "playground" ? "active" : ""}`}
-                  onClick={() => navigate("playground")}
-                >
-                  <span class="flex items-center gap-2">
-                    <TerminalIcon size={13} class="opacity-70 shrink-0" />
-                    <span>Playground</span>
-                  </span>
-                </button>
-              </li>
-              {/* Bookmarks */}
+          <aside class="w-56 shrink-0 bg-base-100 border-r border-base-200 overflow-y-auto flex flex-col fixed md:static inset-y-0 left-0 z-40 mt-14 md:mt-0">
+            <div class="p-3 flex-1">
+              {/* ── Quick actions ── */}
+              <div class="grid grid-cols-2 gap-1.5 mb-4">
+                {[
+                  { id: "dashboard", icon: "🏠", label: "ホーム" },
+                  { id: "random-quiz", icon: "🎲", label: "クイズ" },
+                  { id: "daily-challenge", icon: "📅", label: "今日の挑戦" },
+                  { id: "playground", icon: "💻", label: "Playground" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    class={`flex flex-col items-center gap-0.5 p-2 rounded-xl text-xs font-semibold transition-all ${currentSection === item.id ? "bg-primary/10 text-primary border-2 border-primary" : "bg-base-200 hover:bg-base-300 border-2 border-transparent"}`}
+                    onClick={() => navigate(item.id)}
+                  >
+                    <span class="text-lg">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Mobile stats ── */}
+              <div class="flex gap-2 mb-4 sm:hidden">
+                <div class="flex items-center gap-1 bg-warning/10 rounded-lg px-2 py-1 text-xs font-bold">
+                  🔥 {(() => {
+                    let s = 0;
+                    for (let i = 0; i < 30; i++) {
+                      const d = new Date();
+                      d.setDate(d.getDate() - i);
+                      if (studyLog[d.toISOString().slice(0, 10)]) s++;
+                      else if (i > 0) break;
+                    }
+                    return s;
+                  })()}
+                </div>
+                <div class="flex items-center gap-1 bg-info/10 rounded-lg px-2 py-1 text-xs font-bold">
+                  ⚡ {Object.values(quizScores).filter(v => v === "correct").length} XP
+                </div>
+              </div>
+
+              {/* ── Bookmarks ── */}
               {Object.keys(bookmarks).some((id) => bookmarks[id]) && (
-                <>
-                  <li class="menu-title mt-1 mb-0">
-                    <span class="text-[0.6rem] opacity-80 flex items-center gap-1">
-                      <BookmarkIcon size={9} class="text-warning" />
-                      ブックマーク
-                    </span>
-                  </li>
-                  {Object.keys(bookmarks)
-                    .filter((id) => bookmarks[id])
-                    .map((id) => {
-                      const topic = TOPICS[id];
-                      if (!topic) return null;
-                      return (
-                        <li key={id}>
+                <div class="mb-3">
+                  <div class="text-[0.65rem] font-bold uppercase tracking-wider opacity-50 mb-1.5 flex items-center gap-1">
+                    <BookmarkIcon size={9} class="text-warning" />
+                    ブックマーク
+                  </div>
+                  <div class="space-y-0.5">
+                    {Object.keys(bookmarks)
+                      .filter((id) => bookmarks[id])
+                      .map((id) => {
+                        const topic = TOPICS[id];
+                        if (!topic) return null;
+                        return (
                           <button
-                            class="flex w-full text-left"
+                            key={id}
+                            class="w-full text-left text-xs px-2 py-1 rounded-lg hover:bg-base-200 truncate"
                             onClick={() => navigate(topic.section)}
                           >
-                            <span class="truncate text-xs">{topic.title}</span>
+                            {topic.title}
                           </button>
-                        </li>
-                      );
-                    })}
-                </>
+                        );
+                      })}
+                  </div>
+                </div>
               )}
-              {/* Section items grouped by category */}
+
+              {/* ── Skill tree sections ── */}
               {(["basics", "skills", "advanced", "interview"] as SectionGroup[]).map((group) => {
                 const groupSections = SECTIONS.filter(
                   (s) => s.id !== "dashboard" && s.group === group,
                 );
                 if (groupSections.length === 0) return null;
+                const groupColors: Record<SectionGroup, string> = {
+                  basics: "from-primary/20 to-primary/5",
+                  skills: "from-info/20 to-info/5",
+                  advanced: "from-secondary/20 to-secondary/5",
+                  interview: "from-warning/20 to-warning/5",
+                };
                 return (
-                  <>
-                    <li class="menu-title mt-1 mb-0" key={`g-${group}`}>
-                      <span class="text-[0.6rem] opacity-80">
-                        {SECTION_GROUP_LABELS[group]}
-                      </span>
-                    </li>
-                    {groupSections.map((s) => {
-                      const done = s.topicIds.filter(
-                        (id) => completed[id],
-                      ).length;
-                      const total = s.topicIds.length;
-                      const isActive = currentSection === s.id;
-                      return (
-                        <li key={s.id}>
+                  <div key={`g-${group}`} class="mb-3">
+                    <div class={`text-[0.65rem] font-bold uppercase tracking-wider opacity-50 mb-2`}>
+                      {SECTION_GROUP_LABELS[group]}
+                    </div>
+                    <div class="space-y-1">
+                      {groupSections.map((s) => {
+                        const done = s.topicIds.filter((id) => completed[id]).length;
+                        const total = s.topicIds.length;
+                        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                        const isActive = currentSection === s.id;
+                        const isComplete = done === total && total > 0;
+                        return (
                           <button
-                            class={`flex justify-between w-full ${isActive ? "active" : ""}`}
+                            key={s.id}
+                            class={`w-full flex items-center gap-2.5 p-2 rounded-xl transition-all ${isActive ? "bg-gradient-to-r " + groupColors[group as SectionGroup] + " ring-2 ring-primary shadow-sm" : "hover:bg-base-200"}`}
                             onClick={() => navigate(s.id)}
                           >
-                            <span class="flex items-center gap-2">
-                              <span class="opacity-70 w-4 text-center text-xs">
-                                {s.icon}
-                              </span>
-                              <span>{s.title}</span>
-                            </span>
-                            {total > 0 && (
-                              <span
-                                class={`text-xs ${
-                                  done === total
-                                    ? "text-primary"
-                                    : "opacity-80"
-                                }`}
-                              >
-                                {done}/{total}
-                              </span>
-                            )}
+                            {/* Skill node circle */}
+                            <div class={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border-2 ${isComplete ? "bg-primary text-primary-content border-primary" : isActive ? "bg-primary/15 border-primary text-primary" : "bg-base-200 border-base-300"}`}>
+                              {isComplete ? "✓" : s.icon}
+                            </div>
+                            <div class="flex-1 min-w-0 text-left">
+                              <div class="text-xs font-semibold truncate">{s.title}</div>
+                              {total > 0 && (
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                  <progress
+                                    class={`progress h-1.5 flex-1 ${isComplete ? "progress-primary" : "progress-info"}`}
+                                    value={pct}
+                                    max={100}
+                                  />
+                                  <span class={`text-[0.6rem] font-medium ${isComplete ? "text-primary" : "opacity-60"}`}>
+                                    {done}/{total}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </button>
-                        </li>
-                      );
-                    })}
-                  </>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
-            </ul>
-            <div class="p-3 border-t border-base-300 text-center">
-              <span class="text-xs opacity-80">Backend Engineer Ed.</span>
+            </div>
+            <div class="p-3 border-t border-base-200 text-center">
+              <span class="text-[0.65rem] opacity-50 font-medium">Backend Engineer Edition 🐹</span>
             </div>
           </aside>
         )}
