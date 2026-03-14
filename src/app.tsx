@@ -15,11 +15,36 @@ import {
 } from "./icons";
 import { DailyChallenge } from "./daily-challenge";
 import { Playground } from "./playground";
-import { TechLeadInterview } from "./tech-lead-interview";
+// TechLeadInterview is dynamically imported for code-splitting (separate chunk)
 import type { SRSStore, StudyLog } from "./srs";
 import { processResult, recordActivity } from "./srs";
 import { SyncButton } from "./sync-ui";
 import { pushSync, API_URL } from "./sync";
+
+// Lazy loader for TL Interview page (code-split into separate chunk)
+function LazyTLInterview() {
+  const compRef = useRef<Function | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!compRef.current) {
+      import("./tech-lead-interview").then((mod) => {
+        compRef.current = mod.TechLeadInterview;
+        setReady(true);
+      });
+    }
+  }, []);
+
+  if (!ready || !compRef.current) {
+    return (
+      <div class="flex items-center justify-center py-20">
+        <span class="loading loading-spinner loading-md" />
+      </div>
+    );
+  }
+  const C = compRef.current;
+  return <C />;
+}
 
 function useLocalStorage<T>(
   key: string,
@@ -80,6 +105,7 @@ export function App() {
       if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
     };
   }, []);
+
 
   // Desktop: default sidebar open
   useEffect(() => {
@@ -380,7 +406,7 @@ export function App() {
                 }}
               />
             ) : currentSection === "tl-interview" ? (
-              <TechLeadInterview />
+              <LazyTLInterview />
             ) : currentSection === "playground" ? (
               <Playground initialCode={playgroundCode} />
             ) : activeSection ? (
