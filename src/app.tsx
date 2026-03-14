@@ -108,6 +108,7 @@ export function App() {
   const [srsData, setSrsData] = useLocalStorage<SRSStore>("go-study-srs", {});
   const [studyLog, setStudyLog] = useLocalStorage<StudyLog>("go-study-log", {});
   const [searchOpen, setSearchOpen] = useState(false);
+  const [fontSize, setFontSize] = useLocalStorage<number>("go-study-font-size", 100);
   const autoSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced auto-sync: push to cloud 3s after any data change
@@ -251,6 +252,27 @@ export function App() {
         </div>
         <div class="navbar-end gap-1">
           <SyncButton onPullComplete={() => {}} />
+          <div class="flex items-center gap-0.5">
+            <button
+              class="btn btn-ghost btn-xs px-1"
+              onClick={() => setFontSize((p: number) => Math.max(75, p - 10))}
+              disabled={fontSize <= 75}
+              aria-label="文字を小さく"
+              title="文字を小さく"
+            >
+              <span class="text-[10px] font-bold">A-</span>
+            </button>
+            <span class="text-[10px] opacity-60 w-7 text-center">{fontSize}%</span>
+            <button
+              class="btn btn-ghost btn-xs px-1"
+              onClick={() => setFontSize((p: number) => Math.min(150, p + 10))}
+              disabled={fontSize >= 150}
+              aria-label="文字を大きく"
+              title="文字を大きく"
+            >
+              <span class="text-xs font-bold">A+</span>
+            </button>
+          </div>
           <button
             class="btn btn-ghost btn-sm btn-square"
             onClick={() => setSearchOpen(true)}
@@ -423,7 +445,7 @@ export function App() {
         )}
 
         {/* Main Content */}
-        <main class="flex-1 overflow-y-auto">
+        <main class="flex-1 overflow-y-auto" style={`font-size: ${fontSize}%`}>
           <div
             key={currentSection}
             class="page-enter max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8"
