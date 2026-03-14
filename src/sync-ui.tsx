@@ -27,15 +27,15 @@ export function SyncButton({ onPullComplete }: Props) {
   useEffect(() => {
     fetchUser().then((u) => {
       setUser(u);
-      // On first login, check if there's remote data to pull
-      if (u && !localStorage.getItem("gs_synced_once")) {
-        import("./sync").then(({ pullSync: ps }) =>
-          ps()
-            .then((applied) => {
-              if (applied) setPullPrompt(true);
-            })
-            .catch(() => {}),
-        );
+      // Always pull from DB on login to restore latest state
+      if (u) {
+        pullSync()
+          .then((applied) => {
+            if (applied && !localStorage.getItem("gs_synced_once")) {
+              setPullPrompt(true);
+            }
+          })
+          .catch(() => {});
       }
     });
   }, []);

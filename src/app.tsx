@@ -110,13 +110,13 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const autoSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced auto-sync: push to cloud 30s after any quiz answer
+  // Debounced auto-sync: push to cloud 3s after any data change
   const scheduleAutoSync = useCallback(() => {
     if (!API_URL) return;
     if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
     autoSyncTimer.current = setTimeout(() => {
       pushSync().catch(() => {});
-    }, 30_000);
+    }, 3_000);
   }, []);
 
   useEffect(() => {
@@ -148,11 +148,13 @@ export function App() {
       ...prev,
       [id]: !prev[id],
     }));
-  }, []);
+    scheduleAutoSync();
+  }, [scheduleAutoSync]);
 
   const updateNote = useCallback((id: string, val: string) => {
     setNotes((prev: Record<string, string>) => ({ ...prev, [id]: val }));
-  }, []);
+    scheduleAutoSync();
+  }, [scheduleAutoSync]);
 
   const updateQuizScore = useCallback(
     (key: string, result: "correct" | "wrong") => {
@@ -172,14 +174,16 @@ export function App() {
       ...prev,
       [id]: !prev[id],
     }));
-  }, []);
+    scheduleAutoSync();
+  }, [scheduleAutoSync]);
 
   const toggleHighlight = useCallback((key: string) => {
     setHighlights((prev: Record<string, boolean>) => ({
       ...prev,
       [key]: !prev[key],
     }));
-  }, []);
+    scheduleAutoSync();
+  }, [scheduleAutoSync]);
 
   const navigate = useCallback((id: string) => {
     setCurrentSection(id);
