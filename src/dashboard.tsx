@@ -375,8 +375,8 @@ export function Dashboard({
         const behavioralSection = SECTIONS.find((s) => s.id === "behavioral");
         const sysDesignSection = SECTIONS.find((s) => s.id === "system-design");
 
-        const dbApiKeywords = ["database", "api-", "db-", "cap-theorem", "microservices"];
-        const sysDesignKeywords = ["system", "production"];
+        const dbApiKeywords = ["database", "api-", "db-"];
+        const sysDesignKeywords = ["system", "production", "cap-theorem", "microservices"];
         const goTechIds = interviewSection
           ? interviewSection.topicIds.filter((id) =>
               !dbApiKeywords.some((k) => id.includes(k)) &&
