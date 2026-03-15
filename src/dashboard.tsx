@@ -375,14 +375,18 @@ export function Dashboard({
         const behavioralSection = SECTIONS.find((s) => s.id === "behavioral");
         const sysDesignSection = SECTIONS.find((s) => s.id === "system-design");
 
+        const dbApiKeywords = ["database", "api-", "db-", "cap-theorem", "microservices"];
+        const sysDesignKeywords = ["system", "production"];
         const goTechIds = interviewSection
-          ? interviewSection.topicIds.filter((id) => !id.includes("database") && !id.includes("api-") && !id.includes("system") && !id.includes("production") && !id.includes("db-"))
+          ? interviewSection.topicIds.filter((id) =>
+              !dbApiKeywords.some((k) => id.includes(k)) &&
+              !sysDesignKeywords.some((k) => id.includes(k)))
           : [];
         const dbApiIds = interviewSection
-          ? interviewSection.topicIds.filter((id) => id.includes("database") || id.includes("api-") || id.includes("db-"))
+          ? interviewSection.topicIds.filter((id) => dbApiKeywords.some((k) => id.includes(k)))
           : [];
         const sysDesignIds = [
-          ...interviewSection?.topicIds.filter((id) => id.includes("system") || id.includes("production")) ?? [],
+          ...interviewSection?.topicIds.filter((id) => sysDesignKeywords.some((k) => id.includes(k))) ?? [],
           ...(sysDesignSection?.topicIds ?? []).slice(0, 5),
         ];
 

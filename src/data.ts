@@ -7972,6 +7972,559 @@ func ListOrders(ctx context.Context, cursor string, limit int) {
   },
 
   // ═══════════════════════════════════════════════════════════
+  // 追加: 面接頻出技術トピック
+  // ═══════════════════════════════════════════════════════════
+
+  "interview-cap-theorem": {
+    id: "interview-cap-theorem",
+    section: "interview",
+    title: "CAP定理・ACID vs BASE・一貫性モデル",
+    tag: "最重要",
+    summary:
+      "CAP定理（CP vs AP）、ACID/BASEのトレードオフ、強整合性 vs 結果整合性。分散システム面接の最頻出テーマ。",
+    why: "分散システムを設計する際の意思決定の根拠になる。「なぜこのDBを選んだか」に答えるための理論的バックボーン。",
+    tradeoffs: [
+      {
+        title: "CP vs AP: 一貫性 vs 可用性",
+        desc: "ネットワーク分断時にどちらを犠牲にするか。金融系→CP（整合性優先）、SNS→AP（可用性優先）が原則。",
+      },
+      {
+        title: "強整合性 vs 結果整合性",
+        desc: "強整合性は常に最新値を保証するが遅い。結果整合性は一時的なズレを許容し高速・高可用性。",
+      },
+    ],
+    badCode: `// 面接での悪い回答
+面接官: 「なぜMongoDBを選んだのですか？」
+回答: 「JSONが使えて便利だからです」
+// → CAP特性・整合性要件を考慮していない
+
+面接官: 「CAP定理を説明してください」
+回答: 「3つから2つを選べる定理です」
+// → 「Pは必須」という本質を理解していない
+
+設計: Cassandraで残高管理システムを構築
+// → AP系DBで結果整合性 → 二重引き落としのリスク`,
+    goodCode: `// CAP定理の正確な理解
+
+// ❌ 誤解: 「C・A・Pから2つを自由に選べる」
+// ✅ 正解: ネットワーク分断(P)は現実に必ず起きる
+//         → 実際の選択は「分断時に整合性(C)か可用性(A)か」
+
+// CP系の選択（整合性優先）
+// → Etcd, ZooKeeper, PostgreSQL, HBase
+// ユースケース: 決済、在庫管理、分散ロック
+
+// AP系の選択（可用性優先）
+// → Cassandra, DynamoDB, CouchDB, Redis(レプリカ)
+// ユースケース: SNSタイムライン、閲覧履歴、商品カタログ
+
+// ACID（RDB）vs BASE（NoSQL）
+// ACID: Atomicity, Consistency, Isolation, Durability
+//   → 複数行をまたぐトランザクション、銀行送金
+// BASE: Basically Available, Soft state, Eventually consistent
+//   → 高スループット・水平スケール、カートデータ
+
+// 一貫性レベル（DynamoDBの例）
+// Strong Consistency: 直前の書き込みが必ず読める
+// Eventual Consistency: 数ms遅延する可能性あり（読み取りコスト半分）
+
+// Read-your-writes: 自分の書き込みは自分で必ず読める
+// Monotonic reads: 時間が戻って古い値が返ることはない`,
+    interviewPoints: [
+      {
+        point: "PACELC定理（CAP定理の拡張）",
+        detail:
+          "CAPは「分断時のC vs A」だが、分断がない平常時は「レイテンシ(L) vs 整合性(C)」のトレードオフが存在する。DynamoDBはPA/EL（分断時AP、平常時レイテンシ優先）。BigTableはPC/EC（常に整合性優先）。",
+      },
+      {
+        point: "面接での回答フレームワーク",
+        detail:
+          "①要件確認（「このシステムで一時的なデータのズレは許容できますか？」）→ ②CAP位置づけ（CP/AP）→ ③具体的なDB選択と理由→ ④障害時の挙動を説明。「選んだ」より「なぜ選んだか」が評価される。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "決済システムのDBとしてCP系を選ぶ理由を面接で説明するには？",
+        blanks: [
+          "決済では二重引き落とし・残高不整合が絶対に許されない（整合性が最優先）",
+          "ネットワーク分断時は一時的にサービス停止しても整合性を守る（可用性を犠牲）",
+          "PostgreSQL + 2フェーズコミット or Etcdによる分散ロックで実装",
+        ],
+        explanation:
+          "CAP定理を「理論」ではなく「設計判断ツール」として使う。面接官は「CA Systemを選ぶ」という回答を嫌う（ネットワーク分断は現実に起きるため）。必ずCP/APのどちらかで考え、そのトレードオフを明示する。",
+      },
+      {
+        code: "CAP定理で現実に選べるのは ____ か ____ の2択。なぜなら ____ は避けられないから",
+        blanks: ["CP（整合性優先）", "AP（可用性優先）", "ネットワーク分断（P）"],
+        explanation:
+          "分散システムではネットワーク障害は必ず発生する。だから「C vs A」の選択が本質。面接では「3つから2つ」という誤解を明確に否定し、この本質を語ることがシニアの答え方。",
+      },
+    ],
+  },
+
+  "interview-microservices-design": {
+    id: "interview-microservices-design",
+    section: "interview",
+    title: "マイクロサービス分割戦略とサービス間通信",
+    tag: "設計",
+    summary:
+      "ドメイン境界での分割（DDD Bounded Context）、同期/非同期通信の使い分け、モノリス→マイクロサービス移行戦略。",
+    why: "「マイクロサービスとモノリスのどちらを選ぶか」「どこで分割するか」はシニアの設計面接の定番。正解はなくトレードオフの説明が問われる。",
+    tradeoffs: [
+      {
+        title: "マイクロサービス vs モノリス",
+        desc: "マイクロサービスは独立デプロイ・スケーリングが可能だが、分散システムの複雑性（ネットワーク、整合性）が増す。チーム規模が小さい場合はモノリスから始めるのが合理的。",
+      },
+      {
+        title: "同期（REST/gRPC）vs 非同期（Kafka/SQS）",
+        desc: "同期は実装が簡単で即時フィードバックがあるが、依存サービスの障害で連鎖停止する。非同期はレジリエンスが高いが、最終整合性の管理が複雑。",
+      },
+    ],
+    badCode: `// アンチパターン: 分散モノリス
+// サービスが細かく分かれているが、全て同期呼び出しで結合
+OrderService → PaymentService → InventoryService → NotificationService
+// → 1つのサービスが落ちると全体がタイムアウト
+// → デプロイも結局一斉に行う必要がある
+
+// アンチパターン: データ共有
+// 複数のサービスが同一DBテーブルを直接参照
+OrderService --SQL--> shared_db <--SQL-- InventoryService
+// → スキーマ変更が全サービスに影響
+// → 独立したデプロイが不可能`,
+    goodCode: `// サービス分割の原則: DDD Bounded Context
+// 1つのサービス = 1つのビジネスドメイン
+// 各サービスが自分のDBを持つ（Database per Service）
+
+// ✅ 正しい分割例
+UserService:        ユーザー管理、認証
+OrderService:       注文管理、カート
+PaymentService:     決済処理、返金
+InventoryService:   在庫管理
+NotificationService: メール/プッシュ通知
+
+// 同期（gRPC）: リアルタイム応答が必要な場合
+// InventoryService.CheckStock(productId) → 在庫確認
+// PaymentService.Charge(orderId, amount) → 決済
+
+// 非同期（Kafka）: 疎結合・高レジリエンス
+// OrderService → order.created イベント発行
+// InventoryService が購読 → 在庫減算
+// NotificationService が購読 → 確認メール送信
+// → PaymentServiceが落ちてもOrderServiceは動く
+
+// Strangler Fig Pattern（段階的移行）
+// 1. モノリスの前にAPIゲートウェイを置く
+// 2. 新機能は新サービスとして実装
+// 3. 既存機能を段階的に切り出す
+// 4. モノリスが空になったら廃止`,
+    interviewPoints: [
+      {
+        point: "マイクロサービスが向かないケース",
+        detail:
+          "チームが3〜5人以下（コンウェイの法則: アーキテクチャはチーム構造を反映）、インターネット公開前のMVP段階、複雑なトランザクションが多い（Sagaパターンが必要で複雑）。Netflixも最初はモノリスだった。",
+      },
+      {
+        point: "Sagaパターン（分散トランザクション）",
+        detail:
+          "マイクロサービス間でのトランザクションは2PCではなくSagaで実現。補償トランザクション（undo）を定義し、失敗時に順次ロールバック。コレオグラフィ（イベント駆動）とオーケストレーション（中央管理）の2種類。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "「マイクロサービスかモノリスか」を面接で問われたときの回答フレームワークは？",
+        blanks: [
+          "チーム規模とデプロイ頻度を確認（小チーム・早期段階→モノリスFirst）",
+          "ドメインの独立性を評価（密結合→モノリス、独立ビジネス機能→マイクロサービス）",
+          "マイクロサービスの場合はDBの分離・非同期通信・障害隔離の設計を示す",
+        ],
+        explanation:
+          "「マイクロサービスが正解」という答えはない。Martin Fowlerの『MonolithFirst』原則：まずモノリスで動くものを作り、ドメイン境界が見えてからマイクロサービスへ移行する。面接ではこのトレードオフを語れることが重要。",
+      },
+    ],
+  },
+
+  "interview-solid-principles": {
+    id: "interview-solid-principles",
+    section: "interview",
+    title: "SOLID原則とクリーンアーキテクチャ",
+    tag: "設計",
+    summary:
+      "SRP・OCP・LSP・ISP・DIPの5原則とGoでの実践例。クリーンアーキテクチャとレイヤー分離の設計判断。",
+    why: "コードレビューや設計議論でSOLID原則を参照できるか、それをGoのidiomに落とし込めるかがシニアの評価基準。",
+    tradeoffs: [
+      {
+        title: "原則の厳密な適用 vs 実用性",
+        desc: "全てのSOLID原則を厳密に適用するとコードが複雑になりすぎることがある。チームの習熟度と保守性のバランスが必要。",
+      },
+      {
+        title: "レイヤー分離 vs 開発速度",
+        desc: "クリーンアーキテクチャはテスタビリティと保守性を高めるが、小規模では過剰設計になりうる。",
+      },
+    ],
+    badCode: `// SOLID違反の例
+
+// ❌ SRP違反: 1つの構造体が多すぎる責務を持つ
+type UserService struct{}
+func (s *UserService) Register(user User) error { ... }
+func (s *UserService) SendEmail(to, subject string) error { ... }  // メール送信
+func (s *UserService) GenerateReport() []byte { ... }              // レポート生成
+// → テストが難しい、変更理由が多すぎる
+
+// ❌ DIP違反: 高レベルが低レベルに直接依存
+type OrderService struct {
+    db *sql.DB  // 具体的な実装に依存
+}
+// → DBをRedisに変えるとOrderServiceも変更が必要`,
+    goodCode: `// ✅ SOLID原則のGoでの実践
+
+// SRP: 1つの型は1つの責務
+type UserRegistrar struct{ repo UserRepository }
+type EmailSender struct{ smtp SMTPClient }
+
+// OCP: 拡張に開き、変更に閉じる（interfaceで実現）
+type Notifier interface { Notify(user User) error }
+type EmailNotifier struct{}
+type SlackNotifier struct{}
+// 新しい通知手段を追加してもOrderServiceを変更しない
+
+// LSP: interfaceの実装は互いに置き換え可能
+type UserRepository interface {
+    FindByID(id int) (User, error)
+}
+// 全実装（PostgreSQL/Mock）は同じ契約を守る
+
+// ISP: 小さいinterfaceが良い
+type Reader interface { Read(id int) (T, error) }
+type Writer interface { Write(t T) error }
+// 巨大なCRUDServiceインターフェースより小さく分ける
+
+// DIP: 抽象に依存する
+type OrderService struct {
+    repo    OrderRepository  // interface
+    payment PaymentGateway   // interface
+}
+// → テスト時はMockを注入、本番はPostgres/Stripeを注入`,
+    interviewPoints: [
+      {
+        point: "GoにおけるDIP（依存性逆転）の実現方法",
+        detail:
+          "Goのinterfaceはimplicit（宣言不要）。高レベルモジュール側でinterfaceを定義し、低レベルモジュールがそれを実装する。wireやfxによるDIコンテナ、またはシンプルなコンストラクタ注入でDIPを実現。",
+      },
+      {
+        point: "クリーンアーキテクチャの依存関係ルール",
+        detail:
+          "Domain（エンティティ）→ UseCase（アプリケーションロジック）→ Interface Adapter（コントローラ/プレゼンタ）→ Framework/Driver（DB/HTTP）。内側は外側に依存しない。DBの変更がドメインロジックに影響しない設計。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "SOLID の D（DIP）をGoで実現する方法: 高レベルモジュールが定義した ____ に低レベルモジュールが依存する。Goでは ____ を使って実現する",
+        blanks: ["interface（抽象）", "implicit interface satisfaction"],
+        explanation:
+          "Javaと違いGoはinterfaceの実装を宣言する必要がない。これにより「後からinterfaceを定義して既存の実装を適合させる」ことができる。テスト容易性はDIPの最大のメリット：本番はPostgreSQLRepository、テストはInMemoryRepositoryを注入できる。",
+      },
+      {
+        type: "concept" as const,
+        code: "SRP（単一責任原則）違反を見つけるときの判断基準は？",
+        blanks: [
+          "「この型を変更する理由が複数あるか？」→ あれば分割候補",
+          "「この型のテストに複数の外部依存（DB・メール・HTTP）があるか？」→ あれば分割",
+          "型名に「Manager」「Service」「Util」が入っている場合は注意",
+        ],
+        explanation:
+          "SRPの定義は「変更する理由がただ1つ」。テストが難しいクラスはSRP違反のシグナル。Goでは小さいinterfaceと小さいstructを組み合わせることでSRPを自然に実現できる。",
+      },
+    ],
+  },
+
+  "senior-kubernetes": {
+    id: "senior-kubernetes",
+    section: "senior-backend",
+    title: "Kubernetes によるコンテナオーケストレーション",
+    tag: "実務頻出",
+    summary:
+      "Pod・Deployment・Service・Ingress の役割、HPA によるオートスケーリング、Readiness/Liveness probe の設計。",
+    why: "現代のバックエンドエンジニアはKubernetesの基本的な運用知識が求められる。Go サービスのコンテナ化と k8s 上での運用は必須スキル。",
+    tradeoffs: [
+      {
+        title: "Kubernetes vs ECS/Cloud Run",
+        desc: "Kubernetesは柔軟だが運用コストが高い。ECS/Cloud Runはマネージドで楽だが機能制限あり。チームのk8s習熟度で判断。",
+      },
+      {
+        title: "StatefulSet vs Deployment",
+        desc: "ステートレスアプリはDeployment。DBなどの永続状態が必要なものはStatefulSet（安定したPod名とPVC）。",
+      },
+    ],
+    badCode: `# アンチパターン
+# リソース制限なし → OOM Killer がランダムに Pod を殺す
+containers:
+- name: app
+  image: myapp:latest  # ← latestタグ禁止: 再現性がない
+
+# Probe なし → 起動前のリクエストを受け取る
+# → /healthz がないと障害検知が遅れる
+
+# 秘密情報をenvに直書き
+env:
+- name: DB_PASSWORD
+  value: "my-secret-password"  # ← Secretを使う`,
+    goodCode: `# ✅ 本番品質の Kubernetes マニフェスト
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: api-server }
+  template:
+    spec:
+      containers:
+      - name: api-server
+        image: myapp:v1.2.3  # タグは固定バージョン
+        ports:
+        - containerPort: 8080
+        resources:
+          requests: { cpu: "100m", memory: "128Mi" }
+          limits:   { cpu: "500m", memory: "512Mi" }
+        readinessProbe:   # 準備できてから traffic を受け取る
+          httpGet: { path: /healthz/ready, port: 8080 }
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:    # 死んだら再起動
+          httpGet: { path: /healthz/live, port: 8080 }
+          initialDelaySeconds: 30
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: password }
+
+---
+# HPA: CPU使用率70%超えたら自動スケール
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-server
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target: { type: Utilization, averageUtilization: 70 }`,
+    interviewPoints: [
+      {
+        point: "Readiness vs Liveness Probe の使い分け",
+        detail:
+          "Readiness: Podが traffic を受け取れる状態かチェック（DB接続完了等）。失敗すると Service のエンドポイントから除外される。Liveness: Podが生きているかチェック。失敗すると Pod が再起動される。起動が遅いアプリは startupProbe を使い、livenessProbeが早期に失敗しないようにする。",
+      },
+      {
+        point: "Go サービスの /healthz エンドポイント設計",
+        detail:
+          "Readiness: DB・Redis等の依存サービスへの接続確認。失敗すると traffic を止めることで障害を隔離。Liveness: Goroutine数の異常増加チェック等。軽量なチェックのみ（依存サービスのチェックはReadinessに任せる）。",
+      },
+    ],
+    quizzes: [
+      {
+        code: "Kubernetes で Go サービスをデプロイする際、Rolling Update 中のダウンタイムをゼロにするには: ____ probe で準備完了を確認し、____ を設定し、PodDisruptionBudget で最低 ____ Pod は常時稼働を保証する",
+        blanks: ["Readiness", "requests/limits", "1つ"],
+        explanation:
+          "Zero Downtime Deployment の3条件: ①Readiness Probeで準備できたPodのみに traffic → ②Resource limitsで安定動作 → ③PDBで最低台数を保証してRolling Update中も可用性を維持。Go サービスは graceful shutdown（SIGTERM ハンドリング）も必須。",
+      },
+    ],
+  },
+
+  "senior-cicd": {
+    id: "senior-cicd",
+    section: "senior-backend",
+    title: "CI/CDパイプライン設計とデプロイ戦略",
+    tag: "実務頻出",
+    summary:
+      "GitHub Actions での Go CI パイプライン、カナリアリリース・Blue-Green・Feature Flag によるリスク低減デプロイ。",
+    why: "シニアエンジニアはCI/CDの設計・改善を主導する。高頻度デプロイを安全に実現するアーキテクチャを語れるかが問われる。",
+    tradeoffs: [
+      {
+        title: "デプロイ頻度 vs 安定性",
+        desc: "高頻度デプロイは価値提供が速い反面、バグの露出機会も増える。Canaryリリースで段階的に検証しリスクを管理。",
+      },
+      {
+        title: "Feature Flag vs バージョニング",
+        desc: "Feature Flagはコードを変えずに機能のON/OFFができるが管理コストが発生。Long-lived feature branchは統合コストが高い。",
+      },
+    ],
+    badCode: `# アンチパターン: テストなしで本番デプロイ
+# main にマージ → 即本番デプロイ
+# → バグが全ユーザーに影響
+
+# 長期間のfeatureブランチ
+# feature/big-refactoring (2ヶ月間放置)
+# → マージ時のコンフリクトが膨大
+# → テストが通るかわからない
+
+# ロールバック手順がない
+# → 問題発生時にパニックになる`,
+    goodCode: `# ✅ Go CI/CD with GitHub Actions
+
+name: CI/CD
+on: [push, pull_request]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with: { go-version: '1.22' }
+
+    # 品質ゲート（全て通らないとデプロイ不可）
+    - run: go vet ./...
+    - run: golangci-lint run
+    - run: go test -race -coverprofile=coverage.out ./...
+    - run: go build -o /dev/null ./...
+
+    # セキュリティスキャン
+    - run: govulncheck ./...
+
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    steps:
+    # Canary Release: 10% → 50% → 100%
+    - run: kubectl set image deployment/api api=myapp:$(GITHUB_SHA)
+    - run: kubectl rollout status deployment/api --timeout=5m
+    # 問題があれば自動ロールバック
+    - run: |
+        if ! kubectl rollout status deployment/api; then
+          kubectl rollout undo deployment/api
+          exit 1
+        fi
+
+# Feature Flag パターン（LaunchDarkly/自社実装）
+// Go での実装例
+if featureFlag.IsEnabled(ctx, "new-payment-flow", userID) {
+    return newPaymentHandler.Process(req)
+}
+return legacyPaymentHandler.Process(req)`,
+    interviewPoints: [
+      {
+        point: "DORA メトリクスで CI/CD の成熟度を語る",
+        detail:
+          "DORA: Deployment Frequency（デプロイ頻度）、Lead Time（コミットから本番まで）、Change Failure Rate（デプロイ起因の障害率）、MTTR（平均復旧時間）。シニアはこれらの数値で組織のDevOps成熟度を評価・改善できる。",
+      },
+      {
+        point: "テストピラミッドとCI速度",
+        detail:
+          "Unit Tests（多・速）→ Integration Tests（中）→ E2E Tests（少・遅）。CIが10分以上かかると開発速度が低下。並列実行・テストキャッシュ・軽量な統合テストで高速化。go test -count=1 -parallel=8 で並列実行、testcache 活用で再実行コストを削減。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "カナリアリリースとBlue-Greenデプロイの違いと使い分けは？",
+        blanks: [
+          "カナリア: トラフィックを段階的に新バージョンへ（10%→50%→100%）。本番でのリスクを段階的に検証",
+          "Blue-Green: 新環境を完全に用意して一瞬で切り替え。ロールバックが即座（旧環境に戻すだけ）",
+          "カナリア→段階的な機能リリース。Blue-Green→インフラ変更・大規模変更のリスク低減",
+        ],
+        explanation:
+          "どちらも「本番での検証」を安全に行う戦略。カナリアはコストが低く（既存インフラを使う）だが段階管理が複雑。Blue-Greenはインフラコストが2倍だがロールバックが単純。Feature Flagと組み合わせると更に柔軟なデプロイが可能。",
+      },
+    ],
+  },
+
+  "senior-schema-migration": {
+    id: "senior-schema-migration",
+    section: "senior-backend",
+    title: "DBスキーママイグレーション戦略",
+    tag: "実務頻出",
+    summary:
+      "ゼロダウンタイムマイグレーション（Expand-Contract パターン）、マイグレーションツール（golang-migrate）、ロールバック設計。",
+    why: "本番DBの変更は最もリスクの高いオペレーション。安全なマイグレーション戦略を知っているかがシニアの実力を示す。",
+    tradeoffs: [
+      {
+        title: "Expand-Contract vs 一括変更",
+        desc: "Expand-Contract は複数デプロイに分けるため時間がかかるが安全。一括変更は速いがロールバックが難しく、カラム削除でアプリが壊れるリスクがある。",
+      },
+      {
+        title: "マイグレーション自動適用 vs 手動承認",
+        desc: "自動適用はデプロイが速いが誤ったマイグレーションが即本番に適用されるリスク。手動承認は安全だが運用負荷が高い。",
+      },
+    ],
+    badCode: `-- アンチパターン: カラムのRENAMEを一発で実行
+-- → 旧コードが旧カラム名を参照してクラッシュ
+
+-- ❌ Step 1: カラム名を変更（old_name → new_name）
+ALTER TABLE users RENAME COLUMN old_name TO new_name;
+-- この瞬間に旧コードが壊れる!
+
+-- ❌ NOT NULLカラムをデフォルトなしで追加
+ALTER TABLE orders ADD COLUMN status VARCHAR(20) NOT NULL;
+-- 既存行にNULLが入れられないのでエラー (PostgreSQL)
+
+-- ❌ ロールバックスクリプトなし
+-- 問題発生時に手動でロールバックが必要`,
+    goodCode: `-- ✅ Expand-Contract パターン (3ステップ)
+-- カラムRENAMEを安全に実施する例
+
+-- Phase 1: Expand（新カラム追加）
+-- 旧コードは old_name を使い続け、新コードは new_name も使う
+ALTER TABLE users ADD COLUMN new_name VARCHAR(255);
+UPDATE users SET new_name = old_name; -- データをコピー
+-- この状態で新コードをデプロイ（両カラムに書く）
+
+-- Phase 2: Migrate（全コードをnew_nameに移行）
+-- 新コードが new_name だけを使うように変更・デプロイ
+-- 旧コードへの参照がなくなったことを確認
+
+-- Phase 3: Contract（旧カラム削除）
+ALTER TABLE users DROP COLUMN old_name;
+
+-- golang-migrate での管理
+// 000001_create_users.up.sql
+CREATE TABLE users (id BIGSERIAL PRIMARY KEY, name TEXT);
+// 000001_create_users.down.sql
+DROP TABLE users;
+
+// Go コードでの適用
+db, _ := sql.Open("postgres", dsn)
+m, _ := migrate.NewWithDatabaseInstance(
+    "file://migrations", "postgres", driver)
+m.Up() // 全マイグレーション適用
+m.Steps(-1) // 1ステップロールバック`,
+    interviewPoints: [
+      {
+        point: "大量データのマイグレーション戦略",
+        detail:
+          "数億行のテーブルに対してALTER TABLEを実行するとテーブルロックが発生し、数時間のダウンタイムになりえる。バッチ処理での段階的UPDATE（WHERE id BETWEEN x AND y）、gh-ost（GitHubのオンラインスキーマ変更ツール）、PostgreSQLのCONCURRENTLY INDEXを使う。",
+      },
+      {
+        point: "マイグレーションのロールバック設計",
+        detail:
+          "毎回対でdown.sqlを書く。ただしデータ削除のdownは不可逆なため特別注意。本番では forward-only（downを実行しない）ポリシーも合理的。代わりに新しいupマイグレーションで修正する。",
+      },
+    ],
+    quizzes: [
+      {
+        type: "concept" as const,
+        code: "本番のカラム名変更をゼロダウンタイムで実施するExpand-Contractパターンの3ステップは？",
+        blanks: [
+          "Expand: 新カラムを追加し、新旧両カラムに書き込む新コードをデプロイ",
+          "Migrate: 新カラムのみ読み書きするコードに切り替え、旧カラムへの参照をゼロにする",
+          "Contract: 旧カラムを削除（この時点で旧コードは存在しない）",
+        ],
+        explanation:
+          "ABCデプロイ（Atomic Binary Change）の逆。変更を複数の安全なステップに分割し、各ステップで旧コードと新コードが共存できる状態を維持する。緊急のロールバックが必要になっても、各ステップが独立して安全。",
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════
   // シニアバックエンド共通知識
   // ═══════════════════════════════════════════════════════════
 
@@ -8825,6 +9378,9 @@ export const SECTIONS: Section[] = [
       "senior-api-versioning",
       "senior-observability",
       "senior-resilience",
+      "senior-kubernetes",
+      "senior-cicd",
+      "senior-schema-migration",
     ],
   },
   // ── 面接準備 (interview): 面接対策→行動面接→要点まとめ→TL面接 ──
@@ -8841,6 +9397,9 @@ export const SECTIONS: Section[] = [
       "interview-interface",
       "interview-error-handling",
       "interview-concurrency-patterns",
+      "interview-cap-theorem",
+      "interview-microservices-design",
+      "interview-solid-principles",
       "interview-database-design",
       "interview-api-design",
       "interview-system-design",
